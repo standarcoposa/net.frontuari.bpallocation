@@ -101,6 +101,12 @@ public class Allocation extends CustomForm
 	//	Create local variables for filter by DocType/Role Access
 	public boolean filterbyDocType = false;
 	public int         	m_AD_Role_ID = 0;
+		//	Added By Jorge Colmenarez, 2024-03-11 15:15
+	//	Add Activity and Cost Center
+	public int         m_C_Activity_ID = 0;
+	public int         m_User1_ID = 0;
+	//	Create local variables for always update allocation date
+	public boolean alwaysUpdateAllocationDate = false;
 	//	End Jorge Colmenarez
 	//Added by david castillo filter org by org of session
 	public boolean filterBySessionOrg = false;
@@ -116,7 +122,8 @@ public class Allocation extends CustomForm
 		//	Added by Jorge Colmenarez, 2024-01-15 18:02
 		//	get Sysconfig value Allocation filter by Document Type
 		filterbyDocType = MSysConfig.getBooleanValue("ALLOCATION_FILTER_BY_DOCTYPE", false, Env.getContextAsInt(Env.getCtx(), "#AD_Client_ID"), Env.getContextAsInt(Env.getCtx(), "#AD_Org_ID"));
-
+		//	Update Always AllocationDate
+		alwaysUpdateAllocationDate = MSysConfig.getBooleanValue("ALLOCATION_ALWAYS_UPDATE_ALLOCATIONDATE", false, Env.getContextAsInt(Env.getCtx(), "#AD_Client_ID"), Env.getContextAsInt(Env.getCtx(), "#AD_Org_ID"));
 		m_AD_Role_ID = Env.getContextAsInt(Env.getCtx(), "#AD_Role_ID");   //  default
 		//	End Jorge Colmenarez
 		
@@ -150,7 +157,7 @@ public class Allocation extends CustomForm
 		//}
 	}
 	
-	public Vector<Vector<Object>> getPaymentData(boolean isMultiCurrency, Object date, IMiniTable paymentTable, String IsSOTrx, boolean isDocTypeFilter, int docTypePayment)
+	public Vector<Vector<Object>> getPaymentData(boolean isMultiCurrency, Object date, IMiniTable paymentTable, boolean isDocTypeFilter, int docTypePayment)
 	{		
 		/********************************
 		 *  Load unallocated Payments
@@ -174,14 +181,6 @@ public class Allocation extends CustomForm
 			sql.append(" AND p.C_Currency_ID=?");				//      #6
 		if (m_AD_Org_ID != 0 )
 			sql.append(" AND p.AD_Org_ID=" + m_AD_Org_ID);
-		//	Added By Jorge Colmenarez, 2023-08-11 15:48
-		//	Support for Ticket #0000668
-		if(!IsSOTrx.equals("B"))
-			sql.append(" AND p.IsReceipt = '"+IsSOTrx+"' ");
-		boolean usedate = MSysConfig.getBooleanValue("ALLOCATION_USE_DATEASFILTER", false, Env.getAD_Client_ID(Env.getCtx()));
-		if(usedate && date != null)
-			sql.append(" AND p.DateTrx = '"+date.toString()+"' ");
-		//	End Jorge Colmenarez
 		
 		//	Added by Jorge Colmenarez, 2024-01-018 10:53
 		//	Filter by DocType Selected or Role Access
@@ -301,7 +300,7 @@ public class Allocation extends CustomForm
 		paymentTable.autoSize();
 	}
 	
-	public Vector<Vector<Object>> getInvoiceData(boolean isMultiCurrency, Object date, IMiniTable invoiceTable, String IsSOTrx, boolean isDocTypeFilter, int docTypeInvoice)
+	public Vector<Vector<Object>> getInvoiceData(boolean isMultiCurrency, Object date, IMiniTable invoiceTable, boolean isDocTypeFilter, int docTypeInvoice)
 	{
 		/********************************
 		 *  Load unpaid Invoices
@@ -337,11 +336,7 @@ public class Allocation extends CustomForm
 			sql.append(" AND i.C_Currency_ID=?");                                   //  #8
 		if (m_AD_Org_ID != 0 ) 
 			sql.append(" AND i.AD_Org_ID=" + m_AD_Org_ID);
-		//	Added By Jorge Colmenarez, 2023-08-11 15:48
-		//	Support for Ticket #0000668
-		if(!IsSOTrx.equals("B"))
-			sql.append(" AND i.IsSOTrx = '"+IsSOTrx+"' ");
-		//	End Jorge Colmenarez
+
 		//	Added by Jorge Colmenarez, 2024-01-018 10:53
 		//	Filter by DocType Selected or Role Access
 		if(filterbyDocType) {
@@ -1038,8 +1033,13 @@ public class Allocation extends CustomForm
 			if (((Boolean)payment.getValueAt(i, 0)).booleanValue())
 			{
 				Timestamp ts = (Timestamp)payment.getValueAt(i, 1);
-				if ( !isMultiCurrency )  // the converted amounts are only valid for the selected date
+								//	Modified by Jorge Colmenarez, 2024-03-18 21:24
+				//	Update Allocation Date when it's not Multicurrency or not always updated
+				if ( !isMultiCurrency && !alwaysUpdateAllocationDate )  // the converted amounts are only valid for the selected date
 					allocDate = TimeUtil.max(allocDate, ts);
+					else if(alwaysUpdateAllocationDate)
+					allocDate = TimeUtil.max(allocDate, ts);
+				//	End Jorge Colmenarez
 				BigDecimal bd = (BigDecimal)payment.getValueAt(i, i_payment);
 				totalPay = totalPay.add(bd);  //  Applied Pay
 				m_noPayments++;
@@ -1062,8 +1062,13 @@ public class Allocation extends CustomForm
 			if (((Boolean)invoice.getValueAt(i, 0)).booleanValue())
 			{
 				Timestamp ts = (Timestamp)invoice.getValueAt(i, 1);
-				if ( !isMultiCurrency )  // converted amounts only valid for selected date
+				//	Modified by Jorge Colmenarez, 2024-03-18 21:24
+				//	Update Allocation Date when it's not Multicurrency or not always updated
+				if ( !isMultiCurrency || !alwaysUpdateAllocationDate )  // the converted amounts are only valid for the selected date
 					allocDate = TimeUtil.max(allocDate, ts);
+					else if(alwaysUpdateAllocationDate)
+					allocDate = TimeUtil.max(allocDate, ts);
+				//	End Jorge Colmenarez
 				BigDecimal bd = (BigDecimal)invoice.getValueAt(i, i_applied);
 				totalInv = totalInv.add(bd);  //  Applied Inv
 				m_noInvoices++;
@@ -1242,6 +1247,13 @@ public class Allocation extends CustomForm
 				Env.ZERO, Env.ZERO, Env.ZERO);
 			aLine.setC_Charge_ID(m_C_Charge_ID);
 			aLine.setC_BPartner_ID(m_C_BPartner_ID);
+						//	Added by Jorge Colmenarez, 2024-03-11 15:37
+			//	Support for set Activity and Cost Center
+			if(m_C_Activity_ID>0)
+				aLine.set_ValueOfColumn("C_Activity_ID", m_C_Activity_ID);
+			if(m_User1_ID>0)
+				aLine.set_ValueOfColumn("User1_ID", m_User1_ID);
+			//	End Jorge Colmenarez
 			if (!aLine.save(trxName)) {
 				StringBuilder msg = new StringBuilder("Allocation Line not saved - Charge=").append(m_C_Charge_ID);
 				throw new AdempiereException(msg.toString());
@@ -1310,7 +1322,93 @@ public class Allocation extends CustomForm
 
 	@Override
 	protected void initForm() {
-		// TODO Auto-generated method stub
+	}
+	
+	/**
+	 * Get Activity for Allocation
+	 * @return ArrayList
+	 */
+	public ArrayList<KeyNamePair> getActivities()
+	{
+		ArrayList<KeyNamePair> data = new ArrayList<KeyNamePair>();
+		String sql = null;
+		/**	Activity	**/
+		PreparedStatement pstmt = null;
+		ResultSet rs = null;
+		try
+		{
+			sql = MRole.getDefault().addAccessSQL(
+				"SELECT a.C_Activity_ID,a.Value||' - '||a.Name as Activity FROM C_Activity a WHERE a.IsSummary = 'N' AND a.IsActive = 'Y' ORDER BY a.Value", "a",
+				MRole.SQL_FULLYQUALIFIED, MRole.SQL_RO);
+
+			KeyNamePair dt = new KeyNamePair(0, "");
+			data.add(dt);
+			pstmt = DB.prepareStatement(sql, null);
+			rs = pstmt.executeQuery();
+
+			while (rs.next())
+			{
+				dt = new KeyNamePair(rs.getInt(1), rs.getString(2));
+				data.add(dt);
+			}
+		}
+		catch (SQLException e)
+		{
+			log.log(Level.SEVERE, sql, e);
+		}
+		finally
+		{
+			DB.close(rs, pstmt);
+			rs = null;
+			pstmt = null;
+		}
 		
+		return data;
+	}
+	
+	/**
+	 * Get Cost Center by Activity for Allocation
+	 * @return ArrayList
+	 */
+	public ArrayList<KeyNamePair> getCostCenter(int ActivityID)
+	{
+		ArrayList<KeyNamePair> data = new ArrayList<KeyNamePair>();
+		String sql = null;
+		/**	Cost Center	**/
+		PreparedStatement pstmt = null;
+		ResultSet rs = null;
+		try
+		{
+			sql = MRole.getDefault().addAccessSQL(
+				"SELECT a.C_ElementValue_ID,a.Value||' - '||a.Name as CostCenter FROM C_ElementValue a "
+				+ "JOIN FTU_Activity_User1_Access b ON (a.C_ElementValue_ID = b.User1_ID) "
+				+ "WHERE a.IsSummary = 'N' AND a.IsActive = 'Y' "
+				+ "AND b.C_Activity_ID = "+ActivityID+" "
+				+ "ORDER BY a.Value", "a",
+				MRole.SQL_FULLYQUALIFIED, MRole.SQL_RO);
+
+			KeyNamePair dt = new KeyNamePair(0, "");
+			data.add(dt);
+			pstmt = DB.prepareStatement(sql, null);
+			rs = pstmt.executeQuery();
+
+			while (rs.next())
+			{
+				dt = new KeyNamePair(rs.getInt(1), rs.getString(2));
+				data.add(dt);
+			}
+		}
+		catch (SQLException e)
+		{
+			log.log(Level.SEVERE, sql, e);
+		}
+		finally
+		{
+			DB.close(rs, pstmt);
+			rs = null;
+			pstmt = null;
+		}
+		
+		return data;		
 	}
 }

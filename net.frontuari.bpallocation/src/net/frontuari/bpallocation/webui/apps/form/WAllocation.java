@@ -21,6 +21,7 @@ import static org.compiere.model.SystemIDs.COLUMN_C_INVOICE_C_CURRENCY_ID;
 import static org.compiere.model.SystemIDs.COLUMN_C_PERIOD_AD_ORG_ID;
 
 import java.sql.Timestamp;
+import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Vector;
 import java.util.logging.Level;
@@ -37,6 +38,7 @@ import org.adempiere.webui.component.Grid;
 import org.adempiere.webui.component.GridFactory;
 import org.adempiere.webui.component.Label;
 import org.adempiere.webui.component.ListModelTable;
+import org.adempiere.webui.component.Listbox;
 import org.adempiere.webui.component.ListboxFactory;
 import org.adempiere.webui.component.Panel;
 import org.adempiere.webui.component.Row;
@@ -61,6 +63,7 @@ import org.compiere.model.MLookupFactory;
 import org.compiere.model.MSysConfig;
 import org.compiere.util.DisplayType;
 import org.compiere.util.Env;
+import org.compiere.util.KeyNamePair;
 import org.compiere.util.Msg;
 import org.compiere.util.Trx;
 import org.compiere.util.TrxRunnable;
@@ -170,11 +173,13 @@ public class WAllocation extends Allocation
 	private WTableDirEditor docTypePaymentSearch = null;
 	private Label docTypeInvoiceLabel = new Label();
 	private WTableDirEditor docTypeInvoiceSearch = null;
-	//	Added by Jorge Colmenarez, 2023-08-11 15:27
-	//	Request for Ticket #0000668
-	private Label trxTypeLabel = new Label();
-	private Combobox trxType = new Combobox();
-	private String m_IsSOTrx = "B";
+	//	Added by Jorge Colmenarez 2024-03-08 16:35 
+	//	support for selected Activity and Cost Center when Charge it's Selected
+	private Label activityLabel = new Label();
+	private Listbox activityPick = ListboxFactory.newDropdownListbox();
+	private Label costcenterLabel = new Label();
+	private Listbox costcenterPick = ListboxFactory.newDropdownListbox();
+	private boolean showActivityAndCostCenter = false;
 	//	End Jorge Colmenarez
 	
 	/**
@@ -228,8 +233,8 @@ public class WAllocation extends Allocation
 		organizationLabel.setText(Msg.translate(Env.getCtx(), "AD_Org_ID"));
 		//	Added by Jorge Colmenarez, 2023-08-11 15:33
 		//	Request for Ticket #0000668
-		trxTypeLabel.setText(Msg.translate(Env.getCtx(),"IsSOTrx"));
-		trxType.addEventListener(Events.ON_CHANGE, this);
+		//trxTypeLabel.setText(Msg.translate(Env.getCtx(),"IsSOTrx"));
+		//trxType.addEventListener(Events.ON_CHANGE, this);
 		//	End Jorge Colmenarez
 		//	Added by Jorge Colmenarez, 2024-01-15 17:48
 		//	Support request #12 GSS for filter by DocType Access of Payments and Invoices
@@ -240,6 +245,9 @@ public class WAllocation extends Allocation
 			docTypePaymentLabel.setText(" " + Msg.translate(Env.getCtx(), "C_DocTypePayment_ID"));
 			docTypeInvoiceLabel.setText(" " + Msg.translate(Env.getCtx(), "C_DocTypeInvoice_ID"));
 		}
+				//	Added by Jorge colmenarez, 2024-03-08 17:43
+				activityLabel.setText(" " + Msg.translate(Env.getCtx(), "C_Activity_ID"));
+				costcenterLabel.setText(" " + Msg.translate(Env.getCtx(), "User1_ID"));
 		//	End Jorge Colmenarez
 		
 		// parameters layout
@@ -382,15 +390,7 @@ public class WAllocation extends Allocation
 		cbox.appendChild(autoWriteOff);
 		row.appendCellChild(cbox, 2);	
 		
-		//	Added by Jorge Colmenarez, 2023-08-11 15:36
-		//	Request for Ticket #0000668
-		boolean useTrxType = MSysConfig.getBooleanValue("ALLOCATION_USE_TRXTYPEFILTER", false, Env.getAD_Client_ID(Env.getCtx()));
-		if(useTrxType) {
-			row.appendCellChild(trxTypeLabel.rightAlign(),1);
-			ZKUpdateUtil.setHflex(trxType, "true");
-			row.appendCellChild(trxType,1);
-		}
-		//	End Jorge Colmenarez
+	
 		if (noOfColumn < 6)		
 			LayoutUtils.compactTo(parameterLayout, noOfColumn);
 		else
@@ -437,6 +437,37 @@ public class WAllocation extends Allocation
 		ZKUpdateUtil.setVflex(statusBar, "min");
 		ZKUpdateUtil.setVflex(south, "min");
 		rows = allocationLayout.newRows();
+		row = rows.newRow();
+		
+		if (maxWidth(SMALL_WIDTH-1))
+			row = rows.newRow();
+		row.appendCellChild(chargeLabel.rightAlign());
+		ZKUpdateUtil.setHflex(chargePick.getComponent(), "true");
+		row.appendCellChild(chargePick.getComponent());
+		chargePick.showMenu();
+		//	Added by Jorge Colmenarez, 2024-03-08 16:47
+		//	Show Activity and Cost Center
+		showActivityAndCostCenter = MSysConfig.getBooleanValue("ShowActivityAndCostCenterOnAllocation", false, Env.getAD_Client_ID(Env.getCtx()), Env.getAD_Org_ID(Env.getCtx()));
+		if(showActivityAndCostCenter) {
+			if (maxWidth(SMALL_WIDTH-1))
+				row = rows.newRow();
+			row.appendCellChild(activityLabel.rightAlign());
+			ZKUpdateUtil.setHflex(activityPick, "true");
+			row.appendCellChild(activityPick);
+			if (maxWidth(SMALL_WIDTH-1))
+				row = rows.newRow();
+			row.appendCellChild(costcenterLabel.rightAlign());
+			ZKUpdateUtil.setHflex(costcenterPick, "true");
+			row.appendCellChild(costcenterPick);
+		}
+		//	End Jorge Colmenarez
+		if (maxWidth(SMALL_WIDTH-1))
+			row = rows.newRow();
+		row.appendCellChild(DocTypeLabel.rightAlign());
+		ZKUpdateUtil.setHflex(DocTypePick.getComponent(), "true");
+		row.appendCellChild(DocTypePick.getComponent());
+		DocTypePick.showMenu();
+		//	New Line
 		row = rows.newRow();
 		if (maxWidth(SMALL_WIDTH-1))
 		{
@@ -532,14 +563,6 @@ public class WAllocation extends Allocation
 		organizationPick.setValue(Env.getAD_Org_ID(Env.getCtx()));
 		organizationPick.addValueChangeListener(this);
 		
-		//	Added by Jorge Colmenarez, 2023-08-11 15:40
-		//	Support for Ticket #0000668
-		trxType.appendItem("Ambos", 1);
-		trxType.appendItem("SI", 2);
-		trxType.appendItem("NO", 3);
-		trxType.setSelectedIndex(0);
-		//	End Jorge Colmenarez
-		
 		//  BPartner
 		AD_Column_ID = COLUMN_C_INVOICE_C_BPARTNER_ID;        //  C_Invoice.C_BPartner_ID
 		MLookup lookupBP = MLookupFactory.get (Env.getCtx(), form.getWindowNo(), 0, AD_Column_ID, DisplayType.Search);
@@ -569,8 +592,27 @@ public class WAllocation extends Allocation
 		chargePick.setValue(Integer.valueOf(m_C_Charge_ID));
 		chargePick.addValueChangeListener(this);
 		
-		//  Charge
-		AD_Column_ID = 212213;    //  C_AllocationLine.C_Charge_ID
+		//	Added by Jorge Colmenarez, 2024-03-08 16:39
+		// Activity selection
+		ArrayList<KeyNamePair> activityData = getActivities();
+		for(KeyNamePair pp : activityData)
+			activityPick.appendItem(pp.getName(), pp);
+		activityPick.setSelectedIndex(0);
+		activityPick.setEnabled(false);
+		activityPick.addActionListener(this);
+		// Cost Center selection
+		KeyNamePair activity = (KeyNamePair) activityPick.getSelectedItem().getValue();
+		int activityID = activity.getKey();
+		ArrayList<KeyNamePair> costcenterData = getCostCenter(activityID);
+		for(KeyNamePair pp : costcenterData)
+			costcenterPick.appendItem(pp.getName(), pp);
+		costcenterPick.setSelectedIndex(0);
+		costcenterPick.setEnabled(false);
+		costcenterPick.addActionListener(this);
+		//	End Jorge Colmenarez
+		
+		//  DocType
+		AD_Column_ID = 212213;    //  C_AllocationLine.C_DocType_ID
 		MLookup lookupDocType = MLookupFactory.get (Env.getCtx(), form.getWindowNo(), 0, AD_Column_ID, DisplayType.TableDir);
 		DocTypePick = new WTableDirEditor("C_DocType_ID", false, false, true, lookupDocType);
 		DocTypePick.setValue(Integer.valueOf(m_C_DocType_ID));
@@ -645,19 +687,30 @@ public class WAllocation extends Allocation
 				statusBar.appendChild(link);
 			}					
 		}
+		else if(e.getTarget().equals(activityPick)) {
+			KeyNamePair activity = activityPick.getSelectedItem().getValue();
+			m_C_Activity_ID = activity.getKey();
+			if(m_C_Activity_ID>0) {
+				costcenterPick.removeAllItems();
+				ArrayList<KeyNamePair> costcenterData = getCostCenter(m_C_Activity_ID);
+				for(KeyNamePair pp : costcenterData)
+					costcenterPick.appendItem(pp.getName(), pp);
+				costcenterPick.setSelectedIndex(0);
+				costcenterPick.focus();
+			}
+		}
+		else if(e.getTarget().equals(costcenterPick)) {
+			KeyNamePair costcenter = costcenterPick.getSelectedItem().getValue();
+			m_User1_ID = costcenter.getKey();
+		}
 		else if (e.getTarget().equals(refreshButton))
 		{
-			loadBPartner();
-		}
-		//	Added by Jorge Colmenarez, 2023-08-11 15:44
-		//	Support for Ticket #0000668
-		else if(e.getTarget().equals(trxType)) {
-			if((Integer)trxType.getSelectedItem().getValue() == 2)
-				m_IsSOTrx = "Y";
-			else if((Integer)trxType.getSelectedItem().getValue() == 3)
-				m_IsSOTrx = "N";
-			else
-				m_IsSOTrx = "B";
+			if(showActivityAndCostCenter) {
+				activityPick.setEnabled(false);
+				costcenterPick.setEnabled(false);
+				activityPick.setSelectedIndex(0);
+				costcenterPick.setSelectedIndex(0);
+			}
 			loadBPartner();
 		}
 		//	End Jorge Colmenarez
@@ -710,8 +763,8 @@ public class WAllocation extends Allocation
 	{
 		String name = e.getPropertyName();
 		Object value = e.getNewValue();
-		if (log.isLoggable(Level.CONFIG)) log.config(name + "=" + value);
-		if (value == null && (!name.equals("C_Charge_ID")||!name.equals("C_DocType_ID") ))
+		if (log.isLoggable(Level.WARNING)) log.warning(name + "=" + value);
+		if (value == null && (!name.equals("C_Charge_ID") && !name.equals("C_DocType_ID") ))
 			return;
 		
 		// Organization
@@ -725,7 +778,18 @@ public class WAllocation extends Allocation
 		else if (name.equals("C_Charge_ID") )
 		{
 			m_C_Charge_ID = value!=null? ((Integer) value).intValue() : 0;
-			
+						//	Added by Jorge Colmenarez, 2024-03-08 16:43
+			//	Set Enable Activity and CostCenter
+			if(m_C_Charge_ID>0) {
+				activityPick.setEnabled(true);
+				costcenterPick.setEnabled(true);
+			}else {
+				activityPick.setEnabled(false);
+				costcenterPick.setEnabled(false);
+				activityPick.setSelectedIndex(0);
+				costcenterPick.setSelectedIndex(0);
+			}
+			//	End Jorge Colmenarez
 			setAllocateButton();
 		}
 
@@ -750,6 +814,9 @@ public class WAllocation extends Allocation
 		}
 		//	Date for Multi-Currency
 		else if (name.equals("Date") && multiCurrency.isSelected())
+					//	Added by Jorge Colmenarez, 2024-03-18 21:45
+			//	LoadBPartner when Not Always Update AllocationDate
+			if(!alwaysUpdateAllocationDate)
 			loadBPartner();
 		//	Added by Jorge Colmenarez, 2024-01-18 11:00
 		//	Apply search when DocType Payment or Invoice Changed
@@ -792,7 +859,7 @@ public class WAllocation extends Allocation
 			if(docTypePaymentSearch.getValue() != null)
 				docTypePaymentId = (Integer)docTypePaymentSearch.getValue();
 		}
-		Vector<Vector<Object>> data = getPaymentData(multiCurrency.isSelected(), dateField.getValue(), paymentTable, m_IsSOTrx, docTypeFilter.isSelected(), docTypePaymentId);
+		Vector<Vector<Object>> data = getPaymentData(multiCurrency.isSelected(), dateField.getValue(), paymentTable, docTypeFilter.isSelected(), docTypePaymentId);
 		//	End Jorge Colmenarez
 		Vector<String> columnNames = getPaymentColumnNames(multiCurrency.isSelected());
 		
@@ -815,10 +882,7 @@ public class WAllocation extends Allocation
 			if(docTypeInvoiceSearch.getValue() != null)
 				docTypeInvoiceId = (Integer)docTypeInvoiceSearch.getValue();
 		}
-		if(MSysConfig.getBooleanValue("ALLOCATION_GET_INVOICE_FROM_CURRENCY", true, Env.getAD_Client_ID(Env.getCtx()), Env.getAD_Org_ID(Env.getCtx())))
-			data = getInvoiceData(multiCurrency.isSelected(), dateField.getValue(), invoiceTable, m_IsSOTrx, docTypeFilter.isSelected(), docTypeInvoiceId);
-		else
-			data = getInvoiceDataStd(multiCurrency.isSelected(), dateField.getValue(), invoiceTable, m_IsSOTrx, docTypeFilter.isSelected(), docTypeInvoiceId);
+		data = getInvoiceData(multiCurrency.isSelected(), dateField.getValue(), invoiceTable, docTypeFilter.isSelected(), docTypeInvoiceId);
 		//	End Jorge Colmenarez
 		columnNames = getInvoiceColumnNames(multiCurrency.isSelected());
 		
@@ -884,7 +948,10 @@ public class WAllocation extends Allocation
 				{
 					statusBar.getChildren().clear();
 					allocation[0] = saveData(form.getWindowNo(), dateField.getValue(), dateAcctField.getValue(), paymentTable, invoiceTable, trxName);
-					
+					if(showActivityAndCostCenter) {
+						activityPick.setSelectedIndex(0);
+						costcenterPick.setSelectedIndex(0);
+					}					
 				}
 			});
 			

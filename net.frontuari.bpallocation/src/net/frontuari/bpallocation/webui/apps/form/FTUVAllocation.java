@@ -640,7 +640,7 @@ public class FTUVAllocation extends CustomForm {
 	/**************************************************************************
 	 *  Save Data
 	 */
-	public MAllocationHdr saveData(int m_WindowNo, Object date, IMiniTable payment, IMiniTable invoice, String trxName)
+	public MAllocationHdr saveData(int m_WindowNo, Object date, Object dateAcct, IMiniTable payment, IMiniTable invoice, String trxName)
 	{
 		if (m_noInvoices + m_noPayments == 0)
 			return null;
@@ -652,6 +652,7 @@ public class FTUVAllocation extends CustomForm {
 		int C_Order_ID = 0;
 		int C_CashLine_ID = 0;
 		Timestamp DateTrx = (Timestamp)date;
+		Timestamp DateAcct = (Timestamp)dateAcct;
 		int C_Currency_ID = m_C_Currency_ID;	//	the allocation currency
 		//
 		if (AD_Org_ID == 0)
@@ -661,7 +662,7 @@ public class FTUVAllocation extends CustomForm {
 		}
 		//
 		if (log.isLoggable(Level.CONFIG)) log.config("Client=" + AD_Client_ID + ", Org=" + AD_Org_ID
-			+ ", BPartner=" + C_BPartner_ID + ", Date=" + DateTrx);
+		+ ", BPartner=" + C_BPartner_ID + ", Date=" + DateTrx + ", DateAcct=" + DateAcct);
 
 		//  Payment - Loop and add them to paymentList/amountList
 		int pRows = payment.getRowCount();
@@ -700,7 +701,11 @@ public class FTUVAllocation extends CustomForm {
 		alloc.setDescription(alloc.getDescriptionForManualAllocation(m_C_BPartner_ID, trxName));
 		//	Added by Jorge Colmenarez, 2021-07-22 17:04 
 		//	Support for set DateAcct for CurrentDate, and prevent WrongAllocationDate
+		boolean useSysDate = MSysConfig.getBooleanValue("ALLOCATION_USE_SYSDATE_FOR_DATEACCT", true, Env.getAD_Client_ID(Env.getCtx()));
+		if(useSysDate)
 		alloc.setDateAcct(new Timestamp(System.currentTimeMillis()));
+		else
+		alloc.setDateAcct(DateAcct);
 		//	End Jorge Colmenarez
 		alloc.saveEx();
 		//	For all invoices
