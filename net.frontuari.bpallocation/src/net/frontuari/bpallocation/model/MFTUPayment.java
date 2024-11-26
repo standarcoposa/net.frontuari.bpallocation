@@ -425,7 +425,6 @@ public class MFTUPayment extends MPayment{
 			rs = pstmt.executeQuery();
 			if (rs.next()) {
 				retValue = rs.getBigDecimal(1);
-				log.log(Level.SEVERE, "Asignado: " + retValue);
 			}
 		}
 		catch (Exception e)
