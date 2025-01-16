@@ -166,6 +166,11 @@ public class WAllocation extends Allocation
 	private Label organizationLabel = new Label();
 	private WTableDirEditor organizationPick;
 	private int noOfColumn;
+	//	Added by Jorge Colmenarez, 2023-08-11 15:27
+	//	Request for Ticket #0000668
+	private Label trxTypeLabel = new Label();
+	private Combobox trxType = new Combobox();
+	private String m_IsSOTrx = "B";
 	//	Added by Jorge Colmenarez, 2024-01-15 17:48
 	//	Support request #12 GSS for filter by DocType Access of Payments and Invoices
 	private Checkbox docTypeFilter = new Checkbox();
@@ -233,8 +238,8 @@ public class WAllocation extends Allocation
 		organizationLabel.setText(Msg.translate(Env.getCtx(), "AD_Org_ID"));
 		//	Added by Jorge Colmenarez, 2023-08-11 15:33
 		//	Request for Ticket #0000668
-		//trxTypeLabel.setText(Msg.translate(Env.getCtx(),"IsSOTrx"));
-		//trxType.addEventListener(Events.ON_CHANGE, this);
+		trxTypeLabel.setText(Msg.translate(Env.getCtx(),"IsSOTrx"));
+		trxType.addEventListener(Events.ON_CHANGE, this);
 		//	End Jorge Colmenarez
 		//	Added by Jorge Colmenarez, 2024-01-15 17:48
 		//	Support request #12 GSS for filter by DocType Access of Payments and Invoices
@@ -390,6 +395,15 @@ public class WAllocation extends Allocation
 		cbox.appendChild(autoWriteOff);
 		row.appendCellChild(cbox, 2);	
 		
+		//	Added by Jorge Colmenarez, 2023-08-11 15:36
+		//	Request for Ticket #0000668
+		boolean useTrxType = MSysConfig.getBooleanValue("ALLOCATION_USE_TRXTYPEFILTER", false, Env.getAD_Client_ID(Env.getCtx()));
+		if(useTrxType) {
+			row.appendCellChild(trxTypeLabel.rightAlign(),1);
+			ZKUpdateUtil.setHflex(trxType, "true");
+			row.appendCellChild(trxType,1);
+		}
+		//	End Jorge Colmenarez
 	
 		if (noOfColumn < 6)		
 			LayoutUtils.compactTo(parameterLayout, noOfColumn);
@@ -563,6 +577,14 @@ public class WAllocation extends Allocation
 		organizationPick.setValue(Env.getAD_Org_ID(Env.getCtx()));
 		organizationPick.addValueChangeListener(this);
 		
+		//	Added by Jorge Colmenarez, 2023-08-11 15:40
+		//	Support for Ticket #0000668
+		trxType.appendItem("Ambos", 1);
+		trxType.appendItem("SI", 2);
+		trxType.appendItem("NO", 3);
+		trxType.setSelectedIndex(0);
+		//	End Jorge Colmenarez
+		
 		//  BPartner
 		AD_Column_ID = COLUMN_C_INVOICE_C_BPARTNER_ID;        //  C_Invoice.C_BPartner_ID
 		MLookup lookupBP = MLookupFactory.get (Env.getCtx(), form.getWindowNo(), 0, AD_Column_ID, DisplayType.Search);
@@ -713,6 +735,17 @@ public class WAllocation extends Allocation
 			}
 			loadBPartner();
 		}
+		//	Added by Jorge Colmenarez, 2023-08-11 15:44
+		//	Support for Ticket #0000668
+		else if(e.getTarget().equals(trxType)) {
+			if((Integer)trxType.getSelectedItem().getValue() == 2)
+				m_IsSOTrx = "Y";
+			else if((Integer)trxType.getSelectedItem().getValue() == 3)
+				m_IsSOTrx = "N";
+			else
+				m_IsSOTrx = "B";
+			loadBPartner();
+		}
 		//	End Jorge Colmenarez
 	}   //  actionPerformed
 
@@ -828,21 +861,21 @@ public class WAllocation extends Allocation
 	}   //  vetoableChange
 	
 	private void setAllocateButton() {
-			if (totalDiff.signum() == 0 ^ m_C_Charge_ID > 0 )
-			{
-				allocateButton.setEnabled(true);
-			// chargePick.setValue(m_C_Charge_ID);
-			}
-			else
-			{
-				allocateButton.setEnabled(false);
-			}
+		if (totalDiff.signum() == 0 ^ m_C_Charge_ID > 0 )
+		{
+			allocateButton.setEnabled(true);
+		// chargePick.setValue(m_C_Charge_ID);
+		}
+		else
+		{
+			allocateButton.setEnabled(false);
+		}
 
-			if ( totalDiff.signum() == 0 )
-			{
-					chargePick.setValue(null);
-					m_C_Charge_ID = 0;
-	   		}
+		if ( totalDiff.signum() == 0 )
+		{
+				chargePick.setValue(null);
+				m_C_Charge_ID = 0;
+   		}
 	}
 	/**
 	 *  Load Business Partner Info
@@ -859,7 +892,7 @@ public class WAllocation extends Allocation
 			if(docTypePaymentSearch.getValue() != null)
 				docTypePaymentId = (Integer)docTypePaymentSearch.getValue();
 		}
-		Vector<Vector<Object>> data = getPaymentData(multiCurrency.isSelected(), dateField.getValue(), paymentTable, docTypeFilter.isSelected(), docTypePaymentId);
+		Vector<Vector<Object>> data = getPaymentData(multiCurrency.isSelected(), dateField.getValue(), paymentTable, m_IsSOTrx, docTypeFilter.isSelected(), docTypePaymentId);
 		//	End Jorge Colmenarez
 		Vector<String> columnNames = getPaymentColumnNames(multiCurrency.isSelected());
 		
@@ -882,7 +915,10 @@ public class WAllocation extends Allocation
 			if(docTypeInvoiceSearch.getValue() != null)
 				docTypeInvoiceId = (Integer)docTypeInvoiceSearch.getValue();
 		}
-		data = getInvoiceData(multiCurrency.isSelected(), dateField.getValue(), invoiceTable, docTypeFilter.isSelected(), docTypeInvoiceId);
+		if(MSysConfig.getBooleanValue("ALLOCATION_GET_INVOICE_FROM_CURRENCY", true, Env.getAD_Client_ID(Env.getCtx()), Env.getAD_Org_ID(Env.getCtx())))
+			data = getInvoiceData(multiCurrency.isSelected(), dateField.getValue(), invoiceTable, m_IsSOTrx, docTypeFilter.isSelected(), docTypeInvoiceId);
+		else
+			data = getInvoiceDataStd(multiCurrency.isSelected(), dateField.getValue(), invoiceTable, m_IsSOTrx, docTypeFilter.isSelected(), docTypeInvoiceId);
 		//	End Jorge Colmenarez
 		columnNames = getInvoiceColumnNames(multiCurrency.isSelected());
 		

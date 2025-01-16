@@ -157,7 +157,7 @@ public class Allocation extends CustomForm
 		//}
 	}
 	
-	public Vector<Vector<Object>> getPaymentData(boolean isMultiCurrency, Object date, IMiniTable paymentTable, boolean isDocTypeFilter, int docTypePayment)
+	public Vector<Vector<Object>> getPaymentData(boolean isMultiCurrency, Object date, IMiniTable paymentTable, String IsSOTrx, boolean isDocTypeFilter, int docTypePayment)
 	{		
 		/********************************
 		 *  Load unallocated Payments
@@ -181,6 +181,13 @@ public class Allocation extends CustomForm
 			sql.append(" AND p.C_Currency_ID=?");				//      #6
 		if (m_AD_Org_ID != 0 )
 			sql.append(" AND p.AD_Org_ID=" + m_AD_Org_ID);
+		//	Added By Jorge Colmenarez, 2023-08-11 15:48
+		//	Support for Ticket #0000668
+		if(!IsSOTrx.equals("B"))
+			sql.append(" AND p.IsReceipt = '"+IsSOTrx+"' ");
+		boolean usedate = MSysConfig.getBooleanValue("ALLOCATION_USE_DATEASFILTER", false, Env.getAD_Client_ID(Env.getCtx()));
+		if(usedate && date != null)
+			sql.append(" AND p.DateTrx = '"+date.toString()+"' ");
 		
 		//	Added by Jorge Colmenarez, 2024-01-018 10:53
 		//	Filter by DocType Selected or Role Access
@@ -300,7 +307,7 @@ public class Allocation extends CustomForm
 		paymentTable.autoSize();
 	}
 	
-	public Vector<Vector<Object>> getInvoiceData(boolean isMultiCurrency, Object date, IMiniTable invoiceTable, boolean isDocTypeFilter, int docTypeInvoice)
+	public Vector<Vector<Object>> getInvoiceData(boolean isMultiCurrency, Object date, IMiniTable invoiceTable, String IsSOTrx, boolean isDocTypeFilter, int docTypeInvoice)
 	{
 		/********************************
 		 *  Load unpaid Invoices
@@ -336,7 +343,10 @@ public class Allocation extends CustomForm
 			sql.append(" AND i.C_Currency_ID=?");                                   //  #8
 		if (m_AD_Org_ID != 0 ) 
 			sql.append(" AND i.AD_Org_ID=" + m_AD_Org_ID);
-
+		//	Added By Jorge Colmenarez, 2023-08-11 15:48
+		//	Support for Ticket #0000668
+		if(!IsSOTrx.equals("B"))
+			sql.append(" AND i.IsSOTrx = '"+IsSOTrx+"' ");
 		//	Added by Jorge Colmenarez, 2024-01-018 10:53
 		//	Filter by DocType Selected or Role Access
 		if(filterbyDocType) {
