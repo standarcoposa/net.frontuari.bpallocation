@@ -13,7 +13,7 @@
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  *
- * Copyright (C) 2020 Frontuari, C.A. <http://frontuari.net> and contributors (see README.md file).
+ * Copyright (C) 2025 www.frontuari.net and contributors (see README.md file).
  */
 
 package net.frontuari.bpallocation.util;
@@ -54,7 +54,7 @@ public class FileTemplateBuilderTest {
 		String result = builder.file("resources/xml/xml-invoice.xml").inject("invoice", invoice).build();
 		assertThat(result).contains("<name>" + randomName + "</name>");
 		assertThat(result).contains("<id>" + randomId + "</id>");
-		assertThat(result).contains("<product name=\"" + randomProduct + "\" price=\"" + String.valueOf(randomPrice).replace(".", ",") + "\"/>");
+		assertThat(result).contains("<product name=\"" + randomProduct + "\" price=\"" + randomPrice + "\"/>");
 	}
 
 	public class Invoice {

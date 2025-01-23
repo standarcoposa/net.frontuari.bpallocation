@@ -30,9 +30,11 @@ import org.compiere.util.Msg;
 import org.compiere.util.TimeUtil;
 import org.compiere.util.Util;
 
-import net.frontuari.bpallocation.base.FTUForm;
+import net.frontuari.bpallocation.base.CustomForm;
 
-public class FTUVAllocation extends FTUForm {
+
+
+public class FTUVAllocation extends CustomForm {
 
 	/**
 	 * 
@@ -151,8 +153,8 @@ public class FTUVAllocation extends FTUForm {
 		Vector<Vector<Object>> data = new Vector<Vector<Object>>();
 		StringBuilder sql = new StringBuilder("SELECT p.DateTrx,p.DocumentNo,p.C_Payment_ID,"  //  1..3
 			+ "c.ISO_Code,p.PayAmt,"                            //  4..5
-			+ "currencyConvert(p.PayAmt,p.C_Currency_ID,?,?,p.C_ConversionType_ID,p.AD_Client_ID,p.AD_Org_ID),"//  6   #1, #2
-			+ "currencyConvert(paymentAvailable(C_Payment_ID),p.C_Currency_ID,?,?,p.C_ConversionType_ID,p.AD_Client_ID,p.AD_Org_ID),"  //  7   #3, #4
+			+ "currencyConvertPayment(p.C_Payment_ID,?,p.PayAmt,?),"//  6   #1, #2
+			+ "currencyConvertPayment(p.C_Payment_ID,?,paymentAvailable(C_Payment_ID),?),"  //  7   #3, #4
 			+ "p.MultiplierAP "
 			+ ",bp.Name " // 9
 			+ "FROM C_Payment_v p"		//	Corrected for AP/AR 
@@ -288,10 +290,9 @@ public class FTUVAllocation extends FTUForm {
 		Vector<Vector<Object>> data = new Vector<Vector<Object>>();
 		StringBuilder sql = new StringBuilder("SELECT i.DateInvoiced,i.DocumentNo,i.C_Invoice_ID," //  1..3
 			+ "c.ISO_Code,i.GrandTotal*i.MultiplierAP, "                            //  4..5    Orig Currency
-			+ "currencyConvert(i.GrandTotal*i.MultiplierAP,i.C_Currency_ID,?,i.DateInvoiced,i.C_ConversionType_ID,i.AD_Client_ID,i.AD_Org_ID), " //  6   #1  Converted, #2 Date
+			+ "currencyConvertInvoice(i.C_Invoice_ID,?,i.GrandTotal*i.MultiplierAP,?), " //  6   #1  Converted, #2 Date
 			+ "invoiceOpenConverted(C_Invoice_ID,?::numeric)*i.MultiplierAP, "  //  7   #3, #4  Converted Open
-			+ "currencyConvert(invoiceDiscount"                               //  8       AllowedDiscount
-			+ "(i.C_Invoice_ID,?,C_InvoicePaySchedule_ID),i.C_Currency_ID,?,i.DateInvoiced,i.C_ConversionType_ID,i.AD_Client_ID,i.AD_Org_ID)*i.Multiplier*i.MultiplierAP,"               //  #5, #6
+			+ "currencyConvertInvoice(i.C_Invoice_ID,?,invoiceDiscount(i.C_Invoice_ID,?,C_InvoicePaySchedule_ID),i.DateInvoiced)*i.Multiplier*i.MultiplierAP,"               //  #5, #6
 			+ "i.MultiplierAP "
 			+ ",bp.Name " //	10
 			+ "FROM C_Invoice_v i"		//  corrected for CM/Split 
@@ -315,15 +316,14 @@ public class FTUVAllocation extends FTUForm {
 		{
 			pstmt = DB.prepareStatement(sql.toString(), null);
 			pstmt.setInt(1, m_C_Currency_ID);
-			//pstmt.setTimestamp(2, (Timestamp)date);
-			pstmt.setInt(2, m_C_Currency_ID);
-			//pstmt.setTimestamp(4, (Timestamp)date);
-			pstmt.setTimestamp(3, (Timestamp)date);
+			pstmt.setTimestamp(2, (Timestamp)date);
+			pstmt.setInt(3, m_C_Currency_ID);
 			pstmt.setInt(4, m_C_Currency_ID);
-			pstmt.setInt(5, m_C_BPartner_ID);
-			pstmt.setInt(6, m_C_BPartner2_ID);
+			pstmt.setTimestamp(5, (Timestamp)date);
+			pstmt.setInt(6, m_C_BPartner_ID);
+			pstmt.setInt(7, m_C_BPartner2_ID);
 			if (!isMultiCurrency)
-				pstmt.setInt(7, m_C_Currency_ID);
+				pstmt.setInt(8, m_C_Currency_ID);
 			rs = pstmt.executeQuery();
 			while (rs.next())
 			{
@@ -640,7 +640,7 @@ public class FTUVAllocation extends FTUForm {
 	/**************************************************************************
 	 *  Save Data
 	 */
-	public MAllocationHdr saveData(int m_WindowNo, Object date, IMiniTable payment, IMiniTable invoice, String trxName)
+	public MAllocationHdr saveData(int m_WindowNo, Object date, Object dateAcct, IMiniTable payment, IMiniTable invoice, String trxName)
 	{
 		if (m_noInvoices + m_noPayments == 0)
 			return null;
@@ -652,6 +652,7 @@ public class FTUVAllocation extends FTUForm {
 		int C_Order_ID = 0;
 		int C_CashLine_ID = 0;
 		Timestamp DateTrx = (Timestamp)date;
+		Timestamp DateAcct = (Timestamp)dateAcct;
 		int C_Currency_ID = m_C_Currency_ID;	//	the allocation currency
 		//
 		if (AD_Org_ID == 0)
@@ -661,7 +662,7 @@ public class FTUVAllocation extends FTUForm {
 		}
 		//
 		if (log.isLoggable(Level.CONFIG)) log.config("Client=" + AD_Client_ID + ", Org=" + AD_Org_ID
-			+ ", BPartner=" + C_BPartner_ID + ", Date=" + DateTrx);
+		+ ", BPartner=" + C_BPartner_ID + ", Date=" + DateTrx + ", DateAcct=" + DateAcct);
 
 		//  Payment - Loop and add them to paymentList/amountList
 		int pRows = payment.getRowCount();
@@ -700,7 +701,11 @@ public class FTUVAllocation extends FTUForm {
 		alloc.setDescription(alloc.getDescriptionForManualAllocation(m_C_BPartner_ID, trxName));
 		//	Added by Jorge Colmenarez, 2021-07-22 17:04 
 		//	Support for set DateAcct for CurrentDate, and prevent WrongAllocationDate
+		boolean useSysDate = MSysConfig.getBooleanValue("ALLOCATION_USE_SYSDATE_FOR_DATEACCT", true, Env.getAD_Client_ID(Env.getCtx()));
+		if(useSysDate)
 		alloc.setDateAcct(new Timestamp(System.currentTimeMillis()));
+		else
+		alloc.setDateAcct(DateAcct);
 		//	End Jorge Colmenarez
 		alloc.saveEx();
 		//	For all invoices

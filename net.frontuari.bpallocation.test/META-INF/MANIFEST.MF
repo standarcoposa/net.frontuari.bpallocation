@@ -2,8 +2,8 @@ Manifest-Version: 1.0
 Bundle-ManifestVersion: 2
 Bundle-Name: net.frontuari.bpallocation Test
 Bundle-SymbolicName: net.frontuari.bpallocation.test
-Bundle-Version: 7.1.0.qualifier
-Bundle-Vendor: Frontuari, C.A. <http://frontuari.net>
+Bundle-Version: 12.0.0.qualifier
+Bundle-Vendor: www.frontuari.net
 Fragment-Host: net.frontuari.bpallocation
 Bundle-ClassPath: .,
  lib/junit-jupiter-engine.jar,

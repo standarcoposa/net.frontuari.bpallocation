@@ -5,9 +5,12 @@
 	<parent>
 		<groupId>org.idempiere</groupId>
 		<artifactId>org.idempiere.parent</artifactId>
-		<version>7.1.0-SNAPSHOT</version>
-		<relativePath>../../../idempiere-release-7.1/org.idempiere.parent/pom.xml</relativePath>
+		<version>${revision}</version>
+		<relativePath>../../../idempiere/org.idempiere.parent/pom.xml</relativePath>
 	</parent>
+	<properties>
+		<revision>12.0.0-SNAPSHOT</revision>
+	</properties>
 	<artifactId>net.frontuari.bpallocation</artifactId>
 	<packaging>eclipse-plugin</packaging>
 	<build>
@@ -62,4 +65,11 @@
 			</plugin>
 		</plugins>
 	</build>
+	<dependencies>
+		<dependency>
+			<groupId>org.idempiere</groupId>
+			<artifactId>net.frontuari.custom</artifactId>
+			<version>12.0.0-SNAPSHOT</version>
+		</dependency>
+	</dependencies>
 </project>

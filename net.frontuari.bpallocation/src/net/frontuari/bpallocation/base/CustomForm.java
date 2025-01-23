@@ -13,34 +13,26 @@
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  *
- * Copyright (C) 2020 Frontuari, C.A. <http://frontuari.net> and contributors (see README.md file).
+ * Copyright (C) 2025 www.frontuari.net and contributors (see README.md file).
  */
 
 package net.frontuari.bpallocation.base;
 
-import org.compiere.process.ProcessInfoParameter;
-import org.compiere.process.SvrProcess;
+import org.adempiere.webui.panel.ADForm;
+import org.adempiere.webui.panel.IFormController;
+import org.zkoss.zk.ui.event.Event;
+import org.zkoss.zk.ui.event.EventListener;
 
 /**
- * Custom Process
+ * Custom class for forms
  */
-public abstract class FTUProcess extends SvrProcess {
+public abstract class CustomForm extends ADForm implements IFormController, EventListener<Event> {
 
-	/**
-	 * Get parameter
-	 * 
-	 * @param parameterName Parameter name to find
-	 * @return null if no exist
-	 */
-	protected Object getParameter(String parameterName) {
-		ProcessInfoParameter[] para = getParameter();
-		for (int i = 0; i < para.length; i++) {
-			String name = para[i].getParameterName();
-			if (name != null)
-				if (name.equals(parameterName))
-					return para[i].getParameter();
-		}
-		return null;
+	private static final long serialVersionUID = 1393259812994414770L;
+
+	@Override
+	public ADForm getForm() {
+		return this;
 	}
 
 }

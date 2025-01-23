@@ -13,29 +13,22 @@
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  *
- * Copyright (C) 2020 Frontuari, C.A. <http://frontuari.net> and contributors (see README.md file).
+ * Copyright (C) 2025 www.frontuari.net and contributors (see README.md file).
  */
 
 package net.frontuari.bpallocation.component;
 
-import net.frontuari.bpallocation.base.FTUEventFactory;
+import org.adempiere.base.AnnotationBasedEventManager;
 
 /**
  * Event Factory
  */
-public class EventFactory extends FTUEventFactory {
+public class EventFactory extends AnnotationBasedEventManager {
 
-	/**
-	 * For initialize class. Register the custom events to build
-	 * 
-	 * <pre>
-	 * protected void initialize() {
-	 * 	registerEvent(IEventTopics.DOC_BEFORE_COMPLETE, MTableExample.Table_Name, EPrintPluginInfo.class);
-	 * }
-	 * </pre>
-	 */
 	@Override
-	protected void initialize() {
+	public String[] getPackages() {
+		return new String[] { "net.frontuari.bpallocation.event" };
 	}
 
 }
+

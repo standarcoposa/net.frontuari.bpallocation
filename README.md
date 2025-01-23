@@ -1,27 +1,26 @@
 # net.frontuari.bpallocation
 
-- Copyright: 2020 Frontuari, C.A. <http://frontuari.net>
-- Repository: https://github.com/frontuari/net.frontuari.bpallocation
+- Copyright: 2025 www.frontuari.net
+- Repository: < https://github.com/Frontuari/net.frontuari.bpallocation.git>
 - License: GPL 2
 
 ## Description
 
-This plugins can allocate documents (Invoices and Payments) between two difference business partners.
+Put the plugin description here
 
 ## Contributors
 
-- Jorge Colmenarez - Frontuari, C.A. <jcolmenarez@frontuari.net>.
+- Put the contributor list here, format: Year Name <name@email.com>.
 
 ## Components
 
 - iDempiere Plugin [net.frontuari.bpallocation](net.frontuari.bpallocation)
 - iDempiere Unit Test Fragment [net.frontuari.bpallocation.test](net.frontuari.bpallocation.test)
-- iDempiere Target Platform [net.frontuari.bpallocation.targetplatform](net.frontuari.bpallocation.targetplatform)
 
 ## Prerequisites
 
-- Java 11, commands `java` and `javac`.
-- iDempiere 7.1.0
+- Java 17, commands `java` and `javac`.
+- iDempiere 12.0.0
 - Set `IDEMPIERE_REPOSITORY` env variable
 
 ## Features/Documentation
@@ -36,18 +35,8 @@ This plugins can allocate documents (Invoices and Payments) between two differen
 
 - Put the documentation/links here
 
-## Commands
+## Compile Plugin
 
-Compile plugin and run tests:
+A target platform is necessary to **compile** an iDempiere plugin.
 
-```bash
-./build
-```
-
-Use the parameter `debug` for debug mode example:
-
-```bash
-./build debug
-```
-
-To use `.\build.bat` for windows.
+For more information about how to build a plugin go to [https://github.com/ingeint/idempiere-target-platform-plugin](https://github.com/ingeint/idempiere-target-platform-plugin)

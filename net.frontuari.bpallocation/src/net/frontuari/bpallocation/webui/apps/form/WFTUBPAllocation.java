@@ -52,6 +52,7 @@ import org.adempiere.webui.window.FDialog;
 import org.compiere.model.MAllocationHdr;
 import org.compiere.model.MLookup;
 import org.compiere.model.MLookupFactory;
+import org.compiere.model.MSysConfig;
 import org.compiere.util.DisplayType;
 import org.compiere.util.Env;
 import org.compiere.util.Msg;
@@ -145,6 +146,8 @@ public class WFTUBPAllocation extends FTUBPAllocation implements ValueChangeList
 	private Hlayout statusBar = new Hlayout();
 	private Label dateLabel = new Label();
 	private WDateEditor dateField = new WDateEditor();
+	private Label dateAcctLabel = new Label();
+	private WDateEditor dateAcctField = new WDateEditor();
 	private Checkbox autoWriteOff = new Checkbox();
 	private Label organizationLabel = new Label();
 	private WTableDirEditor organizationPick;
@@ -162,6 +165,7 @@ public class WFTUBPAllocation extends FTUBPAllocation implements ValueChangeList
 		ZKUpdateUtil.setWidth(mainLayout, "99%");
 		ZKUpdateUtil.setHeight(mainLayout, "100%");
 		dateLabel.setText(Msg.getMsg(Env.getCtx(), "Date"));
+		dateAcctLabel.setText(Msg.translate(Env.getCtx(), "DateAcct"));
 		autoWriteOff.setSelected(false);
 		autoWriteOff.setText(Msg.getMsg(Env.getCtx(), "AutoWriteOff", true));
 		autoWriteOff.setTooltiptext(Msg.getMsg(Env.getCtx(), "AutoWriteOff", false));
@@ -214,6 +218,15 @@ public class WFTUBPAllocation extends FTUBPAllocation implements ValueChangeList
 		box.appendChild(dateLabel.rightAlign());
 		box.appendChild(dateField.getComponent());
 		row.appendCellChild(box,2);
+				
+		boolean useSysDate = MSysConfig.getBooleanValue("ALLOCATION_USE_SYSDATE_FOR_DATEACCT", true, Env.getAD_Client_ID(Env.getCtx()));
+		if(!useSysDate)
+		{
+			Hbox box2 = new Hbox();
+			box2.appendChild(dateAcctLabel.rightAlign());
+			box2.appendChild(dateAcctField.getComponent());
+			row.appendCellChild(box2,2);
+		}
 		
 		row = rows.newRow();
 		row.appendCellChild(bpartnerLabel.rightAlign());
@@ -371,7 +384,7 @@ public class WFTUBPAllocation extends FTUBPAllocation implements ValueChangeList
 		cal.set(Calendar.MILLISECOND, 0);
 		dateField.setValue(new Timestamp(cal.getTimeInMillis()));
 		dateField.addValueChangeListener(this);
-
+		dateAcctField.setValue(new Timestamp(cal.getTimeInMillis()));
 		
 		//  Charge
 		AD_Column_ID = 61804;    //  C_AllocationLine.C_Charge_ID
@@ -675,7 +688,7 @@ public class WFTUBPAllocation extends FTUBPAllocation implements ValueChangeList
 				public void run(String trxName)
 				{
 					statusBar.getChildren().clear();
-					allocation[0] = saveData(form.getWindowNo(), dateField.getValue(), paymentTable, invoiceTable, trxName);
+					allocation[0] = saveData(form.getWindowNo(), dateField.getValue(), dateAcctField.getValue(), paymentTable, invoiceTable, trxName);
 					
 				}
 			});

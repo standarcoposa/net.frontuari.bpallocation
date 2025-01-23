@@ -13,7 +13,7 @@
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  *
- * Copyright (C) 2020 Frontuari, C.A. <http://frontuari.net> and contributors (see README.md file).
+ * Copyright (C) 2022 Frontuari, C.A. <https://frontuari.net> and contributors (see README.md file).
  */
 
 package net.frontuari.bpallocation.base;
@@ -29,10 +29,10 @@ import org.compiere.util.CLogger;
 /**
  * Dynamic form factory
  */
-public abstract class FTUFormFactory implements IFormFactory {
+public abstract class CustomFormFactory implements IFormFactory {
 
-	private final static CLogger log = CLogger.getCLogger(FTUFormFactory.class);
-	private List<Class<? extends FTUForm>> cacheForm = new ArrayList<Class<? extends FTUForm>>();
+	private final static CLogger log = CLogger.getCLogger(CustomFormFactory.class);
+	private List<Class<? extends CustomForm>> cacheForm = new ArrayList<Class<? extends CustomForm>>();
 
 	/**
 	 * For initialize class. Register the custom forms to build
@@ -50,7 +50,7 @@ public abstract class FTUFormFactory implements IFormFactory {
 	 * 
 	 * @param processClass Process class to register
 	 */
-	protected void registerForm(Class<? extends FTUForm> formClass) {
+	protected void registerForm(Class<? extends CustomForm> formClass) {
 		cacheForm.add(formClass);
 		log.info(String.format("CustomForm registered -> %s", formClass.getName()));
 	}
@@ -58,7 +58,7 @@ public abstract class FTUFormFactory implements IFormFactory {
 	/**
 	 * Default constructor
 	 */
-	public FTUFormFactory() {
+	public CustomFormFactory() {
 		initialize();
 	}
 
@@ -67,7 +67,7 @@ public abstract class FTUFormFactory implements IFormFactory {
 		for (int i = 0; i < cacheForm.size(); i++) {
 			if (formName.equals(cacheForm.get(i).getName())) {
 				try {
-					FTUForm customForm = cacheForm.get(i).getConstructor().newInstance();
+					CustomForm customForm = cacheForm.get(i).getConstructor().newInstance();
 					log.info(String.format("CustomForm created -> %s", formName));
 					ADForm adForm = customForm.getForm();
 					adForm.setICustomForm(customForm);

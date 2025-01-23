@@ -13,36 +13,22 @@
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  *
- * Copyright (C) 2020 Frontuari, C.A. <http://frontuari.net> and contributors (see README.md file).
+ * Copyright (C) 2025 www.frontuari.net and contributors (see README.md file).
  */
 
 package net.frontuari.bpallocation.component;
 
-import net.frontuari.bpallocation.base.FTUFormFactory;
-import net.frontuari.bpallocation.webui.apps.form.WAllocation;
-import net.frontuari.bpallocation.webui.apps.form.WFTUBPAllocation;
-import net.frontuari.bpallocation.webui.apps.form.WFTUVAllocation;
+import org.adempiere.webui.factory.AnnotationBasedFormFactory;
 
 /**
  * Form Factory
  */
-public class FormFactory extends FTUFormFactory {
+public class FormFactory extends AnnotationBasedFormFactory {
 
-	/**
-	 * For initialize class. Register the custom forms to build. This method is
-	 * useful when is not using autoscan feature.
-	 * 
-	 * <pre>
-	 * protected void initialize() {
-	 * 	registerForm(FPrintPluginInfo.class);
-	 * }
-	 * </pre>
-	 */
 	@Override
-	protected void initialize() {
-		registerForm(WFTUBPAllocation.class);
-		registerForm(WFTUVAllocation.class);
-		registerForm(WAllocation.class);
+	protected String[] getPackages() {
+		return new String[] { "net.frontuari.bpallocation.form" };
 	}
 
 }
+
