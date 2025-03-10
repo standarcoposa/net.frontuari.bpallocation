@@ -250,9 +250,9 @@ public class WAllocation extends Allocation
 			docTypePaymentLabel.setText(" " + Msg.translate(Env.getCtx(), "C_DocTypePayment_ID"));
 			docTypeInvoiceLabel.setText(" " + Msg.translate(Env.getCtx(), "C_DocTypeInvoice_ID"));
 		}
-				//	Added by Jorge colmenarez, 2024-03-08 17:43
-				activityLabel.setText(" " + Msg.translate(Env.getCtx(), "C_Activity_ID"));
-				costcenterLabel.setText(" " + Msg.translate(Env.getCtx(), "User1_ID"));
+		//	Added by Jorge colmenarez, 2024-03-08 17:43
+		activityLabel.setText(" " + Msg.translate(Env.getCtx(), "C_Activity_ID"));
+		costcenterLabel.setText(" " + Msg.translate(Env.getCtx(), "User1_ID"));
 		//	End Jorge Colmenarez
 		
 		// parameters layout
@@ -502,18 +502,6 @@ public class WAllocation extends Allocation
 		}
 		ZKUpdateUtil.setHflex(differenceField, "true");
 		row.appendCellChild(differenceField);
-		if (maxWidth(SMALL_WIDTH-1))
-			row = rows.newRow();
-		row.appendCellChild(chargeLabel.rightAlign());
-		ZKUpdateUtil.setHflex(chargePick.getComponent(), "true");
-		row.appendCellChild(chargePick.getComponent());
-		if (maxWidth(SMALL_WIDTH-1))
-			row = rows.newRow();
-		row.appendCellChild(DocTypeLabel.rightAlign());
-		chargePick.showMenu();
-		ZKUpdateUtil.setHflex(DocTypePick.getComponent(), "true");
-		row.appendCellChild(DocTypePick.getComponent());
-		DocTypePick.showMenu();
 		if (maxWidth(SMALL_WIDTH-1))
 		{
 			row = rows.newRow();
@@ -796,7 +784,6 @@ public class WAllocation extends Allocation
 	{
 		String name = e.getPropertyName();
 		Object value = e.getNewValue();
-		if (log.isLoggable(Level.WARNING)) log.warning(name + "=" + value);
 		if (value == null && (!name.equals("C_Charge_ID") && !name.equals("C_DocType_ID") ))
 			return;
 		
@@ -811,7 +798,7 @@ public class WAllocation extends Allocation
 		else if (name.equals("C_Charge_ID") )
 		{
 			m_C_Charge_ID = value!=null? ((Integer) value).intValue() : 0;
-						//	Added by Jorge Colmenarez, 2024-03-08 16:43
+			//	Added by Jorge Colmenarez, 2024-03-08 16:43
 			//	Set Enable Activity and CostCenter
 			if(m_C_Charge_ID>0) {
 				activityPick.setEnabled(true);
@@ -829,7 +816,6 @@ public class WAllocation extends Allocation
 		else if (name.equals("C_DocType_ID") )
 		{
 			m_C_DocType_ID = value!=null? ((Integer) value).intValue() : 0;
-			
 		}
 
 		//  BPartner
@@ -847,10 +833,10 @@ public class WAllocation extends Allocation
 		}
 		//	Date for Multi-Currency
 		else if (name.equals("Date") && multiCurrency.isSelected())
-					//	Added by Jorge Colmenarez, 2024-03-18 21:45
+			//	Added by Jorge Colmenarez, 2024-03-18 21:45
 			//	LoadBPartner when Not Always Update AllocationDate
 			if(!alwaysUpdateAllocationDate)
-			loadBPartner();
+				loadBPartner();
 		//	Added by Jorge Colmenarez, 2024-01-18 11:00
 		//	Apply search when DocType Payment or Invoice Changed
 		if (name.equals("C_DocTypePayment_ID"))
@@ -948,11 +934,11 @@ public class WAllocation extends Allocation
 		
 		paymentInfo.setText(calculatePayment(paymentTable, multiCurrency.isSelected()));
 		invoiceInfo.setText(calculateInvoice(invoiceTable, multiCurrency.isSelected()));
-
+		
 		//	Set AllocationDate
 		if (allocDate != null) {
 			if (! allocDate.equals(dateField.getValue())) {
-                Clients.showNotification(Msg.getMsg(Env.getCtx(), "AllocationDateUpdated"), Clients.NOTIFICATION_TYPE_INFO, dateField.getComponent(), "start_before", -1, false);       
+                Clients.showNotification(Msg.getMsg(Env.getCtx(), "AllocationDateUpdated"), Clients.NOTIFICATION_TYPE_INFO, dateField.getComponent(), "start_before", -1, false);
                 dateField.setValue(allocDate);
 			}
 		}
@@ -987,7 +973,7 @@ public class WAllocation extends Allocation
 					if(showActivityAndCostCenter) {
 						activityPick.setSelectedIndex(0);
 						costcenterPick.setSelectedIndex(0);
-					}					
+					}
 				}
 			});
 			

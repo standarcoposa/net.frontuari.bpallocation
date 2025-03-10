@@ -17,7 +17,6 @@ import org.compiere.model.MAllocationLine;
 import org.compiere.model.MBPartner;
 import org.compiere.model.MDocType;
 import org.compiere.model.MInvoice;
-import org.compiere.model.MPayment;
 import org.compiere.model.MRole;
 import org.compiere.model.MSysConfig;
 import org.compiere.process.DocAction;
@@ -31,8 +30,7 @@ import org.compiere.util.TimeUtil;
 import org.compiere.util.Util;
 
 import net.frontuari.bpallocation.base.CustomForm;
-
-
+import net.frontuari.bpallocation.model.MFTUPayment;
 
 public class FTUVAllocation extends CustomForm {
 
@@ -75,6 +73,17 @@ public class FTUVAllocation extends CustomForm {
 	public int         	m_AD_OrgTarget_ID = 0;
 
 	private ArrayList<Integer>	m_bpartnerCheck = new ArrayList<Integer>(); 
+	//	Added By Jorge Colmenarez, 2024-01-18 10:57
+	//	Create local variables for filter by DocType/Role Access
+	public boolean filterbyDocType = false;
+	public int         	m_AD_Role_ID = 0;
+	//	Added By Jorge Colmenarez, 2024-03-11 15:15
+	//	Add Activity and Cost Center
+	public int         m_C_Activity_ID = 0;
+	public int         m_User1_ID = 0;
+	//	Create local variables for always update allocation date
+	public boolean alwaysUpdateAllocationDate = false;
+	//	End Jorge Colmenarez
 
 	public void dynInit() throws Exception
 	{
@@ -85,6 +94,13 @@ public class FTUVAllocation extends CustomForm {
 		m_AD_Org_ID = Env.getAD_Org_ID(Env.getCtx());
 		m_AD_OrgTarget_ID = Env.getAD_Org_ID(Env.getCtx());
 		m_C_DocType_ID= MDocType.getDocType("CMA");
+		//	Added by Jorge Colmenarez, 2024-01-15 18:02
+		//	get Sysconfig value Allocation filter by Document Type
+		filterbyDocType = MSysConfig.getBooleanValue("ALLOCATION_FILTER_BY_DOCTYPE", false, Env.getContextAsInt(Env.getCtx(), "#AD_Client_ID"), Env.getContextAsInt(Env.getCtx(), "#AD_Org_ID"));
+		//	Update Always AllocationDate
+		alwaysUpdateAllocationDate = MSysConfig.getBooleanValue("ALLOCATION_ALWAYS_UPDATE_ALLOCATIONDATE", false, Env.getContextAsInt(Env.getCtx(), "#AD_Client_ID"), Env.getContextAsInt(Env.getCtx(), "#AD_Org_ID"));
+		m_AD_Role_ID = Env.getContextAsInt(Env.getCtx(), "#AD_Role_ID");   //  default
+		//	End Jorge Colmenarez
 	}
 	
 	/**
@@ -100,14 +116,14 @@ public class FTUVAllocation extends CustomForm {
 			return;
 
 		//	Async BPartner Test
-		Integer key = new Integer(m_C_BPartner_ID);
+		Integer key = Integer.valueOf(m_C_BPartner_ID);
 		if (!m_bpartnerCheck.contains(key))
 		{
 			new Thread()
 			{
 				public void run()
 				{
-					MPayment.setIsAllocated (Env.getCtx(), m_C_BPartner_ID, null);
+					MFTUPayment.setIsAllocated (Env.getCtx(), m_C_BPartner_ID, null);
 					MInvoice.setIsPaid (Env.getCtx(), m_C_BPartner_ID, null);
 				}
 			}.start();
@@ -135,7 +151,7 @@ public class FTUVAllocation extends CustomForm {
 			{
 				public void run()
 				{
-					MPayment.setIsAllocated (Env.getCtx(), m_C_BPartner2_ID, null);
+					MFTUPayment.setIsAllocated (Env.getCtx(), m_C_BPartner2_ID, null);
 					MInvoice.setIsPaid (Env.getCtx(), m_C_BPartner2_ID, null);
 				}
 			}.start();
@@ -143,7 +159,7 @@ public class FTUVAllocation extends CustomForm {
 		}
 	}
 	
-	public Vector<Vector<Object>> getPaymentData(boolean isMultiCurrency, Object date, IMiniTable paymentTable)
+	public Vector<Vector<Object>> getPaymentData(boolean isMultiCurrency, Object date, IMiniTable paymentTable, boolean isDocTypeFilter, int docTypePayment)
 	{		
 		/********************************
 		 *  Load unallocated Payments
@@ -153,20 +169,33 @@ public class FTUVAllocation extends CustomForm {
 		Vector<Vector<Object>> data = new Vector<Vector<Object>>();
 		StringBuilder sql = new StringBuilder("SELECT p.DateTrx,p.DocumentNo,p.C_Payment_ID,"  //  1..3
 			+ "c.ISO_Code,p.PayAmt,"                            //  4..5
-			+ "currencyConvertPayment(p.C_Payment_ID,?,p.PayAmt,?),"//  6   #1, #2
-			+ "currencyConvertPayment(p.C_Payment_ID,?,paymentAvailable(C_Payment_ID),?),"  //  7   #3, #4
+			+ "currencyConvertPayment(p.C_Payment_ID,?,p.PayAmt,p.DateTrx),"//  6   #1, #2
+			+ "PaymentAvailableConverted(p.C_Payment_ID,?),"  //  7   #3, #4
 			+ "p.MultiplierAP "
 			+ ",bp.Name " // 9
+			+ ",p.DateAcct "	//	10	//	Added by Jorge Colmenarez, 2022-01-05 16:39 RQ #0000225
+			+ ",p.Description " // 11
 			+ "FROM C_Payment_v p"		//	Corrected for AP/AR 
-			+ " INNER JOIN C_BPartner bp ON (p.C_BPartner_ID = bp.C_BPartner_ID) "
+			+ " INNER JOIN AD_Org bp ON (p.AD_Org_ID = bp.AD_Org_ID) "
 			+ " INNER JOIN C_Currency c ON (p.C_Currency_ID=c.C_Currency_ID) "
 			+ "WHERE p.IsAllocated='N' AND p.Processed='Y'"
 			+ " AND p.C_Charge_ID IS NULL"		//	Prepayments OK
-			+ " AND p.C_BPartner_ID IN (?,?)");                   		//      #5,#6
+			+ " AND p.C_BPartner_ID = ? ");                   		//      #5,#6
 		if (!isMultiCurrency)
 			sql.append(" AND p.C_Currency_ID=?");				//      #7
 		if (m_AD_Org_ID != 0 )
 			sql.append(" AND p.AD_Org_ID=" + m_AD_Org_ID);
+		
+		//	Added by Jorge Colmenarez, 2024-01-018 10:53
+		//	Filter by DocType Selected or Role Access
+		if(filterbyDocType) {
+			if(isDocTypeFilter && docTypePayment > 0) {
+				sql.append(" AND p.C_DocType_ID = "+docTypePayment+" ");
+			}else {
+				sql.append(" AND p.C_DocType_ID IN (select distinct C_DocType_ID from AD_Document_Action_Access daa where daa.AD_Role_ID IN ((select Included_Role_ID from AD_Role_Included ri where ri.AD_Role_ID="+m_AD_Role_ID+" union all select "+m_AD_Role_ID+"))) ");
+			}
+		}
+		//	End Jorge Colmenarez
 		sql.append(" ORDER BY p.DateTrx,p.DocumentNo");
 		
 		// role security
@@ -179,18 +208,15 @@ public class FTUVAllocation extends CustomForm {
 		{
 			pstmt = DB.prepareStatement(sql.toString(), null);
 			pstmt.setInt(1, m_C_Currency_ID);
-			pstmt.setTimestamp(2, (Timestamp)date);
-			pstmt.setInt(3, m_C_Currency_ID);
-			pstmt.setTimestamp(4, (Timestamp)date);
-			pstmt.setInt(5, m_C_BPartner_ID);
-			pstmt.setInt(6, m_C_BPartner2_ID);
+			pstmt.setInt(2, m_C_Currency_ID);
+			pstmt.setInt(3, m_C_BPartner_ID);
 			if (!isMultiCurrency)
-				pstmt.setInt(7, m_C_Currency_ID);
+				pstmt.setInt(4, m_C_Currency_ID);
 			rs = pstmt.executeQuery();
 			while (rs.next())
 			{
 				Vector<Object> line = new Vector<Object>();
-				line.add(new Boolean(false));       //  0-Selection
+				line.add(Boolean.FALSE);       //  0-Selection
 				line.add(rs.getTimestamp(1));       //  1-TrxDate
 				KeyNamePair pp = new KeyNamePair(rs.getInt(3), rs.getString(2));
 				line.add(pp);                       //  2-DocumentNo
@@ -207,6 +233,9 @@ public class FTUVAllocation extends CustomForm {
 				line.add(available);				//  5/7-ConvOpen/Available
 				line.add(Env.ZERO);					//  6/8-Payment
 //				line.add(rs.getBigDecimal(8));		//  7/9-Multiplier
+				//	Added by Jorge Colmenarez, 2022-01-05 16:41 RQ #0000225 
+				line.add(rs.getTimestamp(10));		//	9-DateAcct
+				line.add(rs.getString(11));
 				//
 				data.add(line);
 			}
@@ -230,7 +259,7 @@ public class FTUVAllocation extends CustomForm {
 		columnNames.add(Msg.getMsg(Env.getCtx(), "Select"));
 		columnNames.add(Msg.translate(Env.getCtx(), "Date"));
 		columnNames.add(Util.cleanAmp(Msg.translate(Env.getCtx(), "DocumentNo")));
-		columnNames.add(Msg.translate(Env.getCtx(), "C_BPartner_ID"));
+		columnNames.add(Msg.translate(Env.getCtx(), "AD_Org_ID"));
 		if (isMultiCurrency)
 		{
 			columnNames.add(Msg.getMsg(Env.getCtx(), "TrxCurrency"));
@@ -240,6 +269,9 @@ public class FTUVAllocation extends CustomForm {
 		columnNames.add(Msg.getMsg(Env.getCtx(), "OpenAmt"));
 		columnNames.add(Msg.getMsg(Env.getCtx(), "AppliedAmt"));
 //		columnNames.add(" ");	//	Multiplier
+		//	Added by Jorge Colmenarez, 2022-01-05 16:44 RQ #0000225
+		columnNames.add(Msg.translate(Env.getCtx(), "DateAcct"));
+		columnNames.add(Msg.translate(Env.getCtx(), "Description"));
 		
 		return columnNames;
 	}
@@ -261,6 +293,10 @@ public class FTUVAllocation extends CustomForm {
 		paymentTable.setColumnClass(i++, BigDecimal.class, false);      //  8-Allocated
 //		paymentTable.setColumnClass(i++, BigDecimal.class, true);      	//  9-Multiplier
 
+		//	Added by Jorge Colmenarez, 2022-01-05 16:44 RQ #0000225
+		paymentTable.setColumnClass(i++, Timestamp.class, true);        //  9-DateAcct
+		paymentTable.setColumnClass(i++, String.class, true); 			// 10 - Description
+
 		//
 		i_payment = isMultiCurrency ? 8 : 6;
 		
@@ -269,7 +305,7 @@ public class FTUVAllocation extends CustomForm {
 		paymentTable.autoSize();
 	}
 	
-	public Vector<Vector<Object>> getInvoiceData(boolean isMultiCurrency, Object date, IMiniTable invoiceTable)
+	public Vector<Vector<Object>> getInvoiceData(boolean isMultiCurrency, Object date, IMiniTable invoiceTable, boolean isDocTypeFilter, int docTypeInvoice)
 	{
 		/********************************
 		 *  Load unpaid Invoices
@@ -290,20 +326,34 @@ public class FTUVAllocation extends CustomForm {
 		Vector<Vector<Object>> data = new Vector<Vector<Object>>();
 		StringBuilder sql = new StringBuilder("SELECT i.DateInvoiced,i.DocumentNo,i.C_Invoice_ID," //  1..3
 			+ "c.ISO_Code,i.GrandTotal*i.MultiplierAP, "                            //  4..5    Orig Currency
-			+ "currencyConvertInvoice(i.C_Invoice_ID,?,i.GrandTotal*i.MultiplierAP,?), " //  6   #1  Converted, #2 Date
+			+ "currencyConvertInvoice(i.C_Invoice_ID,?,i.GrandTotal*i.MultiplierAP,i.DateInvoiced), " //  6   #1  Converted, #2 Date
 			+ "invoiceOpenConverted(C_Invoice_ID,?::numeric)*i.MultiplierAP, "  //  7   #3, #4  Converted Open
 			+ "currencyConvertInvoice(i.C_Invoice_ID,?,invoiceDiscount(i.C_Invoice_ID,?,C_InvoicePaySchedule_ID),i.DateInvoiced)*i.Multiplier*i.MultiplierAP,"               //  #5, #6
 			+ "i.MultiplierAP "
 			+ ",bp.Name " //	10
+			//	Added by Jorge Colmenarez, 2022-01-05 16:46 RQ #0000225
+			+ ",i.DateAcct "	//	11
+			+ ",i.Description " //12 Description
 			+ "FROM C_Invoice_v i"		//  corrected for CM/Split 
-			+ " INNER JOIN C_BPartner bp ON (i.C_BPartner_ID = bp.C_BPartner_ID) "
+			+ " INNER JOIN AD_Org bp ON (i.AD_Org_ID = bp.AD_Org_ID) "
 			+ " INNER JOIN C_Currency c ON (i.C_Currency_ID=c.C_Currency_ID) "
 			+ "WHERE i.IsPaid='N' AND i.Processed='Y'"
-			+ " AND i.C_BPartner_ID IN (?,?)");                                            //  #7
+			+ " AND i.C_BPartner_ID = ? ");                                            //  #7
 		if (!isMultiCurrency)
 			sql.append(" AND i.C_Currency_ID=?");                                   //  #8
 		if (m_AD_OrgTarget_ID != 0 ) 
 			sql.append(" AND i.AD_Org_ID=" + m_AD_OrgTarget_ID);
+		
+		//	Added by Jorge Colmenarez, 2024-01-018 10:53
+		//	Filter by DocType Selected or Role Access
+		if(filterbyDocType) {
+			if(isDocTypeFilter && docTypeInvoice > 0) {
+				sql.append(" AND i.C_DocType_ID = "+docTypeInvoice+" ");
+			}else {
+				sql.append(" AND i.C_DocType_ID IN (select distinct C_DocType_ID from AD_Document_Action_Access daa where daa.AD_Role_ID IN ((select Included_Role_ID from AD_Role_Included ri where ri.AD_Role_ID="+m_AD_Role_ID+" union all select "+m_AD_Role_ID+"))) ");
+			}
+		}
+		//	End Jorge Colmenarez
 		sql.append(" ORDER BY i.DateInvoiced, i.DocumentNo");
 		if (log.isLoggable(Level.FINE)) log.fine("InvSQL=" + sql.toString());
 		
@@ -316,14 +366,12 @@ public class FTUVAllocation extends CustomForm {
 		{
 			pstmt = DB.prepareStatement(sql.toString(), null);
 			pstmt.setInt(1, m_C_Currency_ID);
-			pstmt.setTimestamp(2, (Timestamp)date);
+			pstmt.setInt(2, m_C_Currency_ID);
 			pstmt.setInt(3, m_C_Currency_ID);
-			pstmt.setInt(4, m_C_Currency_ID);
-			pstmt.setTimestamp(5, (Timestamp)date);
-			pstmt.setInt(6, m_C_BPartner_ID);
-			pstmt.setInt(7, m_C_BPartner2_ID);
+			pstmt.setTimestamp(4, (Timestamp)date);
+			pstmt.setInt(5, m_C_BPartner_ID);
 			if (!isMultiCurrency)
-				pstmt.setInt(8, m_C_Currency_ID);
+				pstmt.setInt(6, m_C_Currency_ID);
 			rs = pstmt.executeQuery();
 			while (rs.next())
 			{
@@ -353,6 +401,9 @@ public class FTUVAllocation extends CustomForm {
 
 //				line.add(rs.getBigDecimal(9));		//	8/10-Multiplier
 				//	Add when open <> 0 (i.e. not if no conversion rate)
+				//	Added by Jorge Colmenarez, 2022-01-05 16:46 RQ #0000225
+				line.add(rs.getTimestamp(11));       //  1-DateAcct
+				line.add(rs.getString(12));    //Description
 				if (Env.ZERO.compareTo(open) != 0)
 					data.add(line);
 			}
@@ -376,7 +427,7 @@ public class FTUVAllocation extends CustomForm {
 		columnNames.add(Msg.getMsg(Env.getCtx(), "Select"));
 		columnNames.add(Msg.translate(Env.getCtx(), "Date"));
 		columnNames.add(Util.cleanAmp(Msg.translate(Env.getCtx(), "DocumentNo")));
-		columnNames.add(Msg.translate(Env.getCtx(), "C_BPartner_ID"));
+		columnNames.add(Msg.translate(Env.getCtx(), "AD_Org_ID"));
 		if (isMultiCurrency)
 		{
 			columnNames.add(Msg.getMsg(Env.getCtx(), "TrxCurrency"));
@@ -389,6 +440,9 @@ public class FTUVAllocation extends CustomForm {
 		columnNames.add(Msg.getMsg(Env.getCtx(), "AppliedAmt"));
 		columnNames.add(Msg.getMsg(Env.getCtx(), "OverUnderAmt"));
 //		columnNames.add(" ");	//	Multiplier
+		//	Added by Jorge Colmenarez, 2022-01-05 16:47 RQ #0000225
+		columnNames.add(Msg.translate(Env.getCtx(), "DateAcct"));
+		columnNames.add(Msg.translate(Env.getCtx(), "Description"));
 		
 		return columnNames;
 	}
@@ -412,6 +466,9 @@ public class FTUVAllocation extends CustomForm {
 		invoiceTable.setColumnClass(i++, BigDecimal.class, false);      //  10-Conv OverUnder
 		invoiceTable.setColumnClass(i++, BigDecimal.class, true);		//	11-Conv Applied
 //		invoiceTable.setColumnClass(i++, BigDecimal.class, true);      	//  10-Multiplier
+		//	Added by Jorge Colmenarez, 2022-01-05 16:47 RQ #0000225
+		invoiceTable.setColumnClass(i++, Timestamp.class, true);        //  11-DateAcct
+		invoiceTable.setColumnClass(i++, String.class, true);
 		//  Table UI
 		invoiceTable.autoSize();
 	}
@@ -601,10 +658,27 @@ public class FTUVAllocation extends CustomForm {
 			if (((Boolean)payment.getValueAt(i, 0)).booleanValue())
 			{
 				Timestamp ts = (Timestamp)payment.getValueAt(i, 1);
-				if ( !isMultiCurrency )  // the converted amounts are only valid for the selected date
+				//	Modified by Jorge Colmenarez, 2024-03-18 21:24
+				//	Update Allocation Date when it's not Multicurrency or not always updated
+				if ( !isMultiCurrency && !alwaysUpdateAllocationDate )  // the converted amounts are only valid for the selected date
 					allocDate = TimeUtil.max(allocDate, ts);
+				else if(alwaysUpdateAllocationDate)
+					allocDate = TimeUtil.max(allocDate, ts);
+				//	Added by Jorge Colmenarez, 2024-12-12 10:07
+				//	Set OpenAmt
+				BigDecimal openAmt = (BigDecimal)payment.getValueAt(i, (isMultiCurrency ? 7 : 5));
 				BigDecimal bd = (BigDecimal)payment.getValueAt(i, i_payment);
-				totalPay = totalPay.add(bd);  //  Applied Pay
+				log.warning("Monto aplicar:"+bd+"  Monto del campo: "+openAmt);
+				if(bd.compareTo(BigDecimal.ZERO)<0 && openAmt.compareTo(bd)<=0)
+					totalPay = totalPay.add(bd);  //  Applied Pay
+				else if(bd.compareTo(BigDecimal.ZERO)>0 && openAmt.compareTo(bd)>=0)
+					totalPay = totalPay.add(bd);  //  Applied Pay
+				else {
+					totalPay = totalPay.add(openAmt);  //  Applied Pay
+					if(totalPay.compareTo(bd)!=0)
+						payment.setValueAt(totalPay, i, i_payment);
+				}
+				//	End Jorge Colmenarez
 				m_noPayments++;
 				if (log.isLoggable(Level.FINE)) log.fine("Payment_" + i + " = " + bd + " - Total=" + totalPay);
 			}
@@ -625,8 +699,13 @@ public class FTUVAllocation extends CustomForm {
 			if (((Boolean)invoice.getValueAt(i, 0)).booleanValue())
 			{
 				Timestamp ts = (Timestamp)invoice.getValueAt(i, 1);
-				if ( !isMultiCurrency )  // converted amounts only valid for selected date
+				//	Modified by Jorge Colmenarez, 2024-03-18 21:24
+				//	Update Allocation Date when it's not Multicurrency or not always updated
+				if ( !isMultiCurrency || !alwaysUpdateAllocationDate )  // the converted amounts are only valid for the selected date
 					allocDate = TimeUtil.max(allocDate, ts);
+				else if(alwaysUpdateAllocationDate)
+					allocDate = TimeUtil.max(allocDate, ts);
+				//	End Jorge Colmenarez
 				BigDecimal bd = (BigDecimal)invoice.getValueAt(i, i_applied);
 				totalInv = totalInv.add(bd);  //  Applied Inv
 				m_noInvoices++;
@@ -662,7 +741,7 @@ public class FTUVAllocation extends CustomForm {
 		}
 		//
 		if (log.isLoggable(Level.CONFIG)) log.config("Client=" + AD_Client_ID + ", Org=" + AD_Org_ID
-		+ ", BPartner=" + C_BPartner_ID + ", Date=" + DateTrx + ", DateAcct=" + DateAcct);
+			+ ", BPartner=" + C_BPartner_ID + ", Date=" + DateTrx + ", DateAcct=" + DateAcct);
 
 		//  Payment - Loop and add them to paymentList/amountList
 		int pRows = payment.getRowCount();
@@ -703,9 +782,9 @@ public class FTUVAllocation extends CustomForm {
 		//	Support for set DateAcct for CurrentDate, and prevent WrongAllocationDate
 		boolean useSysDate = MSysConfig.getBooleanValue("ALLOCATION_USE_SYSDATE_FOR_DATEACCT", true, Env.getAD_Client_ID(Env.getCtx()));
 		if(useSysDate)
-		alloc.setDateAcct(new Timestamp(System.currentTimeMillis()));
+			alloc.setDateAcct(new Timestamp(System.currentTimeMillis()));
 		else
-		alloc.setDateAcct(DateAcct);
+			alloc.setDateAcct(DateAcct);
 		//	End Jorge Colmenarez
 		alloc.saveEx();
 		//	For all invoices
@@ -733,7 +812,7 @@ public class FTUVAllocation extends CustomForm {
 				for (int j = 0; j < paymentList.size() && AppliedAmt.signum() != 0; j++)
 				{
 					int C_Payment_ID = ((Integer)paymentList.get(j)).intValue();
-					MPayment pay = new MPayment(Env.getCtx(), C_Payment_ID, trxName);
+					MFTUPayment pay = new MFTUPayment(Env.getCtx(), C_Payment_ID, trxName);
 					if(pay.getC_BPartner_ID() == inv.getC_BPartner_ID())
 					{
 						BigDecimal PaymentAmt = (BigDecimal)amountList.get(j);
@@ -789,7 +868,7 @@ public class FTUVAllocation extends CustomForm {
 			if ( payAmt.signum() == 0 )
 					continue;
 			int C_Payment_ID = ((Integer)paymentList.get(i)).intValue();
-			MPayment pay = new MPayment(Env.getCtx(), C_Payment_ID, trxName);
+			MFTUPayment pay = new MFTUPayment(Env.getCtx(), C_Payment_ID, trxName);
 			if (log.isLoggable(Level.FINE)) log.fine("Payment=" + C_Payment_ID  
 					+ ", Amount=" + payAmt);
 
@@ -812,6 +891,13 @@ public class FTUVAllocation extends CustomForm {
 				Env.ZERO, Env.ZERO, Env.ZERO);
 			aLine.setC_Charge_ID(m_C_Charge_ID);
 			aLine.setC_BPartner_ID(m_C_BPartner_ID);
+			//	Added by Jorge Colmenarez, 2024-03-11 15:37
+			//	Support for set Activity and Cost Center
+			if(m_C_Activity_ID>0)
+				aLine.set_ValueOfColumn("C_Activity_ID", m_C_Activity_ID);
+			if(m_User1_ID>0)
+				aLine.set_ValueOfColumn("User1_ID", m_User1_ID);
+			//	End Jorge Colmenarez
 			if (!aLine.save(trxName)) {
 				StringBuilder msg = new StringBuilder("Allocation Line not saved - Charge=").append(m_C_Charge_ID);
 				throw new AdempiereException(msg.toString());
@@ -839,7 +925,7 @@ public class FTUVAllocation extends CustomForm {
 				KeyNamePair pp = (KeyNamePair)invoice.getValueAt(i, 2);    //  Value
 				//  Invoice variables
 				int C_Invoice_ID = pp.getKey();
-				String sql = "SELECT invoiceOpen(C_Invoice_ID, 0) "
+				String sql = "SELECT invoiceOpenConverted(C_Invoice_ID, "+m_C_Currency_ID+") "
 					+ "FROM C_Invoice WHERE C_Invoice_ID=?";
 				BigDecimal open = DB.getSQLValueBD(trxName, sql, C_Invoice_ID);
 				if (open != null && open.signum() == 0)	 {
@@ -856,7 +942,7 @@ public class FTUVAllocation extends CustomForm {
 		for (int i = 0; i < paymentList.size(); i++)
 		{
 			int C_Payment_ID = ((Integer)paymentList.get(i)).intValue();
-			MPayment pay = new MPayment (Env.getCtx(), C_Payment_ID, trxName);
+			MFTUPayment pay = new MFTUPayment (Env.getCtx(), C_Payment_ID, trxName);
 			if (pay.testAllocation())
 				pay.saveEx();
 			if (log.isLoggable(Level.CONFIG)) log.config("Payment #" + i + (pay.isAllocated() ? " not" : " is") 
@@ -865,9 +951,6 @@ public class FTUVAllocation extends CustomForm {
 		MBPartner bpartner = new MBPartner(Env.getCtx(), m_C_BPartner_ID, trxName);
 		bpartner.setTotalOpenBalance();
 		bpartner.saveEx();
-		/*MBPartner bpartner2 = new MBPartner(Env.getCtx(), m_C_BPartner2_ID, trxName);
-		bpartner2.setTotalOpenBalance();
-		bpartner2.saveEx();*/
 		paymentList.clear();
 		amountList.clear();
 		
@@ -876,5 +959,93 @@ public class FTUVAllocation extends CustomForm {
 	
 	@Override
 	protected void initForm() {
+	}
+	
+	/**
+	 * Get Activity for Allocation
+	 * @return ArrayList
+	 */
+	public ArrayList<KeyNamePair> getActivities()
+	{
+		ArrayList<KeyNamePair> data = new ArrayList<KeyNamePair>();
+		String sql = null;
+		/**	Activity	**/
+		PreparedStatement pstmt = null;
+		ResultSet rs = null;
+		try
+		{
+			sql = MRole.getDefault().addAccessSQL(
+				"SELECT a.C_Activity_ID,a.Value||' - '||a.Name as Activity FROM C_Activity a WHERE a.IsSummary = 'N' AND a.IsActive = 'Y' ORDER BY a.Value", "a",
+				MRole.SQL_FULLYQUALIFIED, MRole.SQL_RO);
+
+			KeyNamePair dt = new KeyNamePair(0, "");
+			data.add(dt);
+			pstmt = DB.prepareStatement(sql, null);
+			rs = pstmt.executeQuery();
+
+			while (rs.next())
+			{
+				dt = new KeyNamePair(rs.getInt(1), rs.getString(2));
+				data.add(dt);
+			}
+		}
+		catch (SQLException e)
+		{
+			log.log(Level.SEVERE, sql, e);
+		}
+		finally
+		{
+			DB.close(rs, pstmt);
+			rs = null;
+			pstmt = null;
+		}
+		
+		return data;
+	}
+	
+	/**
+	 * Get Cost Center by Activity for Allocation
+	 * @return ArrayList
+	 */
+	public ArrayList<KeyNamePair> getCostCenter(int ActivityID)
+	{
+		ArrayList<KeyNamePair> data = new ArrayList<KeyNamePair>();
+		String sql = null;
+		/**	Cost Center	**/
+		PreparedStatement pstmt = null;
+		ResultSet rs = null;
+		try
+		{
+			sql = MRole.getDefault().addAccessSQL(
+				"SELECT a.C_ElementValue_ID,a.Value||' - '||a.Name as CostCenter FROM C_ElementValue a "
+				+ "JOIN FTU_Activity_User1_Access b ON (a.C_ElementValue_ID = b.User1_ID) "
+				+ "WHERE a.IsSummary = 'N' AND a.IsActive = 'Y' "
+				+ "AND b.C_Activity_ID = "+ActivityID+" "
+				+ "ORDER BY a.Value", "a",
+				MRole.SQL_FULLYQUALIFIED, MRole.SQL_RO);
+
+			KeyNamePair dt = new KeyNamePair(0, "");
+			data.add(dt);
+			pstmt = DB.prepareStatement(sql, null);
+			rs = pstmt.executeQuery();
+
+			while (rs.next())
+			{
+				dt = new KeyNamePair(rs.getInt(1), rs.getString(2));
+				data.add(dt);
+			}
+		}
+		catch (SQLException e)
+		{
+			log.log(Level.SEVERE, sql, e);
+		}
+		finally
+		{
+			DB.close(rs, pstmt);
+			rs = null;
+			pstmt = null;
+		}
+		
+		return data;
 	}
 }
