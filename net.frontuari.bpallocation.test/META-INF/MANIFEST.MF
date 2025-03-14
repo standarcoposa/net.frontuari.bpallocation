@@ -1,9 +1,15 @@
 Manifest-Version: 1.0
 Bundle-ManifestVersion: 2
-Bundle-Name: net.frontuari.bpallocation Test
+Bundle-Name: BP Allocation Test
 Bundle-SymbolicName: net.frontuari.bpallocation.test
+<<<<<<< HEAD
 Bundle-Version: 12.0.0.qualifier
 Bundle-Vendor: www.frontuari.net
+=======
+Automatic-Module-Name: net.frontuari.bpallocation
+Bundle-Version: 11.0.0.qualifier
+Bundle-Vendor: Frontuari, C.A. <https://frontuari.net>
+>>>>>>> refs/remotes/origin/11
 Fragment-Host: net.frontuari.bpallocation
 Bundle-ClassPath: .,
  lib/junit-jupiter-engine.jar,

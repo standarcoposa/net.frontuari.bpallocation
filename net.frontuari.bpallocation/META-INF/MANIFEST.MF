@@ -1,15 +1,17 @@
 Manifest-Version: 1.0
 Bundle-Category: idempiere-plugin
 Bundle-ManifestVersion: 2
-Bundle-Name: net.frontuari.bpallocation
+Bundle-Name: BP Allocation
 Bundle-SymbolicName: net.frontuari.bpallocation
+Automatic-Module-Name: net.frontuari.bpallocation
 Bundle-Version: 12.0.0.qualifier
-Bundle-Vendor: www.frontuari.net
+Bundle-Vendor: Frontuari, C.A. <https://frontuari.net>
 Bundle-ActivationPolicy: lazy
 Require-Bundle: org.apache.commons.lang3,
  org.adempiere.base,
  org.adempiere.plugin.utils,
  org.adempiere.ui.zk,
+ org.adempiere.ui,
  zcommon,
  zel,
  zhtml,

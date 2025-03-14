@@ -6,10 +6,18 @@
 		<groupId>org.idempiere</groupId>
 		<artifactId>org.idempiere.parent</artifactId>
 		<version>${revision}</version>
+<<<<<<< HEAD
 		<relativePath>../../../idempiere/org.idempiere.parent/pom.xml</relativePath>
+=======
+		<relativePath>../../../../idempiere-release11/org.idempiere.parent/pom.xml</relativePath>
+>>>>>>> refs/remotes/origin/11
 	</parent>
         <properties>
+<<<<<<< HEAD
 		<revision>12.0.0-SNAPSHOT</revision>
+=======
+		<revision>11.0.0-SNAPSHOT</revision>
+>>>>>>> refs/remotes/origin/11
         </properties>
 	<artifactId>net.frontuari.bpallocation.test</artifactId>
 	<packaging>eclipse-plugin</packaging>

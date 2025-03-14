@@ -101,7 +101,7 @@ public class Allocation extends CustomForm
 	//	Create local variables for filter by DocType/Role Access
 	public boolean filterbyDocType = false;
 	public int         	m_AD_Role_ID = 0;
-		//	Added By Jorge Colmenarez, 2024-03-11 15:15
+	//	Added By Jorge Colmenarez, 2024-03-11 15:15
 	//	Add Activity and Cost Center
 	public int         m_C_Activity_ID = 0;
 	public int         m_User1_ID = 0;
@@ -168,7 +168,7 @@ public class Allocation extends CustomForm
 		StringBuilder sql = new StringBuilder("SELECT p.DateTrx,p.DocumentNo,p.C_Payment_ID,"  //  1..3
 			+ "c.ISO_Code,p.PayAmt,"                            //  4..5
 			+ "currencyConvertPayment(p.C_Payment_ID,?,p.PayAmt,p.DateTrx),"//  6   #1, #2
-			+ "currencyConvertPayment(p.C_Payment_ID,?,paymentAvailable(C_Payment_ID),p.DateTrx),"  //  7   #3, #4
+			+ "PaymentAvailableConverted(p.C_Payment_ID,?),"  //  7   #3, #4
 			+ "p.MultiplierAP " //	8
 			+ ",p.DateAcct "	//	9	//	Added by Jorge Colmenarez, 2022-01-05 16:39 RQ #0000225
 			+ ",p.Description "
@@ -1043,15 +1043,26 @@ public class Allocation extends CustomForm
 			if (((Boolean)payment.getValueAt(i, 0)).booleanValue())
 			{
 				Timestamp ts = (Timestamp)payment.getValueAt(i, 1);
-								//	Modified by Jorge Colmenarez, 2024-03-18 21:24
+				//	Modified by Jorge Colmenarez, 2024-03-18 21:24
 				//	Update Allocation Date when it's not Multicurrency or not always updated
 				if ( !isMultiCurrency && !alwaysUpdateAllocationDate )  // the converted amounts are only valid for the selected date
 					allocDate = TimeUtil.max(allocDate, ts);
-					else if(alwaysUpdateAllocationDate)
+				else if(alwaysUpdateAllocationDate)
 					allocDate = TimeUtil.max(allocDate, ts);
-				//	End Jorge Colmenarez
+				//	Added by Jorge Colmenarez, 2024-12-12 10:07
+				//	Set OpenAmt
+				BigDecimal openAmt = (BigDecimal)payment.getValueAt(i, (isMultiCurrency ? 6 : 4));
 				BigDecimal bd = (BigDecimal)payment.getValueAt(i, i_payment);
-				totalPay = totalPay.add(bd);  //  Applied Pay
+				if(bd.compareTo(BigDecimal.ZERO)<0 && openAmt.compareTo(bd)<=0)
+					totalPay = totalPay.add(bd);  //  Applied Pay
+				else if(bd.compareTo(BigDecimal.ZERO)>0 && openAmt.compareTo(bd)>=0)
+					totalPay = totalPay.add(bd);  //  Applied Pay
+				else {
+					totalPay = totalPay.add(openAmt);  //  Applied Pay
+					if(totalPay.compareTo(bd)!=0)
+						payment.setValueAt(totalPay, i, i_payment);
+				}
+				//	End Jorge Colmenarez
 				m_noPayments++;
 				if (log.isLoggable(Level.FINE)) log.fine("Payment_" + i + " = " + bd + " - Total=" + totalPay);
 			}
@@ -1076,9 +1087,9 @@ public class Allocation extends CustomForm
 				//	Update Allocation Date when it's not Multicurrency or not always updated
 				if ( !isMultiCurrency || !alwaysUpdateAllocationDate )  // the converted amounts are only valid for the selected date
 					allocDate = TimeUtil.max(allocDate, ts);
-					else if(alwaysUpdateAllocationDate)
+				else if(alwaysUpdateAllocationDate)
 					allocDate = TimeUtil.max(allocDate, ts);
-				//	End Jorge Colmenarez
+				//	Added by Jorge Colmenarez, 2024-12-12 10:07
 				BigDecimal bd = (BigDecimal)invoice.getValueAt(i, i_applied);
 				totalInv = totalInv.add(bd);  //  Applied Inv
 				m_noInvoices++;
@@ -1114,7 +1125,7 @@ public class Allocation extends CustomForm
 		}
 		//
 		if (log.isLoggable(Level.CONFIG)) log.config("Client=" + AD_Client_ID + ", Org=" + AD_Org_ID
-			+ ", BPartner=" + C_BPartner_ID + ", Date=" + DateTrx);
+			+ ", BPartner=" + C_BPartner_ID + ", Date=" + DateTrx + ", DateAcct=" + DateAcct);
 
 		//  Payment - Loop and add them to paymentList/amountList
 		int pRows = payment.getRowCount();
@@ -1257,7 +1268,7 @@ public class Allocation extends CustomForm
 				Env.ZERO, Env.ZERO, Env.ZERO);
 			aLine.setC_Charge_ID(m_C_Charge_ID);
 			aLine.setC_BPartner_ID(m_C_BPartner_ID);
-						//	Added by Jorge Colmenarez, 2024-03-11 15:37
+			//	Added by Jorge Colmenarez, 2024-03-11 15:37
 			//	Support for set Activity and Cost Center
 			if(m_C_Activity_ID>0)
 				aLine.set_ValueOfColumn("C_Activity_ID", m_C_Activity_ID);
@@ -1419,6 +1430,6 @@ public class Allocation extends CustomForm
 			pstmt = null;
 		}
 		
-		return data;		
+		return data;
 	}
 }

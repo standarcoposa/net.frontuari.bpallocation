@@ -1,7 +1,12 @@
-# net.frontuari.bpallocation
+# BP Allocation
 
+<<<<<<< HEAD
 - Copyright: 2025 www.frontuari.net
 - Repository: < https://github.com/Frontuari/net.frontuari.bpallocation.git>
+=======
+- Copyright: 2024 Frontuari, C.A. <https://frontuari.net>
+- Repository: https://github.com/Frontuari/net.frontuari.bpallocation
+>>>>>>> refs/remotes/origin/11
 - License: GPL 2
 
 ## Description
@@ -20,7 +25,11 @@ Put the plugin description here
 ## Prerequisites
 
 - Java 17, commands `java` and `javac`.
+<<<<<<< HEAD
 - iDempiere 12.0.0
+=======
+- iDempiere 11.0.0
+>>>>>>> refs/remotes/origin/11
 - Set `IDEMPIERE_REPOSITORY` env variable
 
 ## Features/Documentation
