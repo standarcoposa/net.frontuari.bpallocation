@@ -18,16 +18,31 @@
 
 package net.frontuari.bpallocation.component;
 
-import org.adempiere.webui.factory.AnnotationBasedFormFactory;
+import net.frontuari.bpallocation.base.CustomFormFactory;
+import net.frontuari.bpallocation.webui.apps.form.WAllocation;
+import net.frontuari.bpallocation.webui.apps.form.WFTUBPAllocation;
+import net.frontuari.bpallocation.webui.apps.form.WFTUVAllocation;
 
 /**
  * Form Factory
  */
-public class FormFactory extends AnnotationBasedFormFactory {
+public class FormFactory extends CustomFormFactory {
 
+	/**
+	 * For initialize class. Register the custom forms to build. This method is
+	 * useful when is not using autoscan feature.
+	 * 
+	 * <pre>
+	 * protected void initialize() {
+	 * 	registerForm(FPrintPluginInfo.class);
+	 * }
+	 * </pre>
+	 */
 	@Override
-	protected String[] getPackages() {
-		return new String[] { "net.frontuari.bpallocation.form" };
+	protected void initialize() {
+		registerForm(WFTUBPAllocation.class);
+		registerForm(WFTUVAllocation.class);
+		registerForm(WAllocation.class);
 	}
 
 }
