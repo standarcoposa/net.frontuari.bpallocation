@@ -6,6 +6,9 @@ import java.sql.ResultSet;
 import java.util.Properties;
 import java.util.logging.Level;
 
+import org.adempiere.base.Core;
+import org.adempiere.base.CreditStatus;
+import org.adempiere.base.ICreditManager;
 import org.adempiere.exceptions.AdempiereException;
 import org.compiere.model.MBPartner;
 import org.compiere.model.MCash;
@@ -13,6 +16,7 @@ import org.compiere.model.MCashLine;
 import org.compiere.model.MClient;
 import org.compiere.model.MConversionRate;
 import org.compiere.model.MConversionRateUtil;
+import org.compiere.model.MDocType;
 import org.compiere.model.MInvoice;
 import org.compiere.model.MOrder;
 import org.compiere.model.MPaySelectionCheck;
@@ -44,8 +48,8 @@ public class MFTUPayment extends MPayment{
 	public MFTUPayment(Properties ctx, int C_Payment_ID, String trxName) {
 		super(ctx, C_Payment_ID, trxName);
 	}
-	
-	/**************************************************************************
+
+	/**
 	 *	Prepare Document
 	 * 	@return new status (In Progress or Invalid) 
 	 */
@@ -101,7 +105,8 @@ public class MFTUPayment extends MPayment{
 				if (length > 0)		//	get last invoice
 					setC_Invoice_ID (invoices[length-1].getC_Invoice_ID());
 				//
-				if (getC_Invoice_ID() == 0)
+				MDocType orderDocType = MDocType.get(getCtx(), order.getC_DocType_ID());
+				if (orderDocType.isAutoGenerateInvoice() && getC_Invoice_ID() == 0)
 				{
 					m_processMsg = "@NotFound@ @C_Invoice_ID@";
 					return DocAction.STATUS_Invalid;
@@ -132,25 +137,19 @@ public class MFTUPayment extends MPayment{
 			return DocAction.STATUS_Invalid;
 		}
 
-		//	Do not pay when Credit Stop/Hold
-		/*if (!isReceipt())
+		//	Added By Jorge Colmenarez, 2022-06-08 11:27
+		boolean checkCreditBP = MSysConfig.getBooleanValue("CHECK_CREDITBP_ON_PAYMENT", true,getAD_Client_ID(),getAD_Org_ID());
+		//	Do not pay when Credit Stop/Hold and checkCreditBP it's true
+		ICreditManager creditManager = Core.getCreditManager(this);
+		if (creditManager != null)
 		{
-			MBPartner bp = new MBPartner (getCtx(), getC_BPartner_ID(), get_TrxName());
-			if (X_C_BPartner.SOCREDITSTATUS_CreditStop.equals(bp.getSOCreditStatus()))
+			CreditStatus status = creditManager.checkCreditStatus(DOCACTION_Prepare);
+			if (status.isError() && checkCreditBP)
 			{
-				m_processMsg = "@BPartnerCreditStop@ - @TotalOpenBalance@=" 
-					+ bp.getTotalOpenBalance()
-					+ ", @SO_CreditLimit@=" + bp.getSO_CreditLimit();
+				m_processMsg = status.getErrorMsg();
 				return DocAction.STATUS_Invalid;
 			}
-			if (X_C_BPartner.SOCREDITSTATUS_CreditHold.equals(bp.getSOCreditStatus()))
-			{
-				m_processMsg = "@BPartnerCreditHold@ - @TotalOpenBalance@=" 
-					+ bp.getTotalOpenBalance()
-					+ ", @SO_CreditLimit@=" + bp.getSO_CreditLimit();
-				return DocAction.STATUS_Invalid;
-			}
-		}*/
+		}
 		
 		m_processMsg = ModelValidationEngine.get().fireDocValidate(this, ModelValidator.TIMING_AFTER_PREPARE);
 		if (m_processMsg != null)
