@@ -57,7 +57,6 @@ import org.adempiere.webui.panel.CustomForm;
 import org.adempiere.webui.panel.IFormController;
 import org.adempiere.webui.util.ZKUpdateUtil;
 import org.adempiere.webui.window.FDialog;
-import org.compiere.model.MAllocationHdr;
 import org.compiere.model.MLookup;
 import org.compiere.model.MLookupFactory;
 import org.compiere.model.MSysConfig;
@@ -79,6 +78,8 @@ import org.zkoss.zul.Hbox;
 import org.zkoss.zul.Hlayout;
 import org.zkoss.zul.North;
 import org.zkoss.zul.South;
+
+import net.frontuari.bpallocation.model.MFTUAllocationHeader;
 
 import static org.adempiere.webui.ClientInfo.*;
 
@@ -688,12 +689,12 @@ public class WAllocation extends Allocation
 		else if (e.getTarget().equals(allocateButton))
 		{
 			allocateButton.setEnabled(false);
-			MAllocationHdr allocation = saveData();
+			MFTUAllocationHeader allocation = saveData();
 			loadBPartner();
 			allocateButton.setEnabled(true);
 			if (allocation != null) 
 			{
-				DocumentLink link = new DocumentLink(Msg.getElement(Env.getCtx(), MAllocationHdr.COLUMNNAME_C_AllocationHdr_ID) + ": " + allocation.getDocumentNo(), allocation.get_Table_ID(), allocation.get_ID());				
+				DocumentLink link = new DocumentLink(Msg.getElement(Env.getCtx(), MFTUAllocationHeader.COLUMNNAME_C_AllocationHdr_ID) + ": " + allocation.getDocumentNo(), allocation.get_Table_ID(), allocation.get_ID());				
 				statusBar.appendChild(link);
 			}					
 		}
@@ -955,7 +956,7 @@ public class WAllocation extends Allocation
 	/**************************************************************************
 	 *  Save Data
 	 */
-	private MAllocationHdr saveData()
+	private MFTUAllocationHeader saveData()
 	{
 		if (m_AD_Org_ID > 0)
 			Env.setContext(Env.getCtx(), form.getWindowNo(), "AD_Org_ID", m_AD_Org_ID);
@@ -963,7 +964,7 @@ public class WAllocation extends Allocation
 			Env.setContext(Env.getCtx(), form.getWindowNo(), "AD_Org_ID", "");
 		try
 		{
-			final MAllocationHdr[] allocation = new MAllocationHdr[1];
+			final MFTUAllocationHeader[] allocation = new MFTUAllocationHeader[1];
 			Trx.run(new TrxRunnable() 
 			{
 				public void run(String trxName)

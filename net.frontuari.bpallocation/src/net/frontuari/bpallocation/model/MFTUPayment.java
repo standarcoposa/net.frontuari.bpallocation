@@ -1,6 +1,7 @@
 package net.frontuari.bpallocation.model;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.util.Properties;
@@ -10,12 +11,17 @@ import org.adempiere.base.Core;
 import org.adempiere.base.CreditStatus;
 import org.adempiere.base.ICreditManager;
 import org.adempiere.exceptions.AdempiereException;
+import org.adempiere.util.PaymentUtil;
+import org.compiere.model.MAcctSchema;
 import org.compiere.model.MBPartner;
+import org.compiere.model.MBankAccount;
 import org.compiere.model.MCash;
 import org.compiere.model.MCashLine;
 import org.compiere.model.MClient;
+import org.compiere.model.MClientInfo;
 import org.compiere.model.MConversionRate;
 import org.compiere.model.MConversionRateUtil;
+import org.compiere.model.MCurrency;
 import org.compiere.model.MDocType;
 import org.compiere.model.MInvoice;
 import org.compiere.model.MOrder;
@@ -32,7 +38,9 @@ import org.compiere.model.X_C_Order;
 import org.compiere.process.DocAction;
 import org.compiere.util.DB;
 import org.compiere.util.Env;
+import org.compiere.util.IBAN;
 import org.compiere.util.Msg;
+import org.compiere.util.Util;
 
 public class MFTUPayment extends MPayment{
 
@@ -438,5 +446,221 @@ public class MFTUPayment extends MPayment{
 		}
 		return retValue;
 	}	//	getAllocatedAmt
+	
+	@Override
+	protected boolean beforeSave (boolean newRecord)
+	{
+		// Disallow changes to fields with financial implications if payment have been processed
+		if (isProcessed() && 
+			! is_ValueChanged(COLUMNNAME_Processed) &&
+            (   is_ValueChanged(COLUMNNAME_C_BankAccount_ID)
+             || is_ValueChanged(COLUMNNAME_C_BPartner_ID)
+             || is_ValueChanged(COLUMNNAME_C_Charge_ID)
+             || is_ValueChanged(COLUMNNAME_C_Currency_ID)
+             || is_ValueChanged(COLUMNNAME_C_DocType_ID)
+             || is_ValueChanged(COLUMNNAME_DateAcct)
+             || is_ValueChanged(COLUMNNAME_DateTrx)
+             || is_ValueChanged(COLUMNNAME_DiscountAmt)
+             || is_ValueChanged(COLUMNNAME_PayAmt)
+             || is_ValueChanged(COLUMNNAME_WriteOffAmt))) {
+			log.saveError("PaymentAlreadyProcessed", Msg.translate(getCtx(), "C_Payment_ID"));
+			return false;
+		}
+		// Validate that either cash book or bank account is mandatory depending on whether this is a cash book transaction
+		if ( isCashbookTrx()) {
+			// Cash Book Is mandatory
+			if ( getC_CashBook_ID() <= 0 ) {
+				log.saveError("Error", Msg.parseTranslation(getCtx(), "@Mandatory@: @C_CashBook_ID@"));
+				return false;
+			}
+		} else {
+			// Bank Account Is mandatory
+			if ( getC_BankAccount_ID() <= 0 ) {
+				log.saveError("Error", Msg.parseTranslation(getCtx(), "@Mandatory@: @C_BankAccount_ID@"));
+				return false;
+			}
+		}
+		
+		// Reset order, invoice, write off, discount, isOverUnderPayment, OverUnderAmt and IsPrepayment for new Charge payment 
+		// or after Charge have been changed
+		if (getC_Charge_ID() != 0) 
+		{
+			if (newRecord || is_ValueChanged("C_Charge_ID"))
+			{
+				setC_Order_ID(0);
+				setC_Invoice_ID(0);
+				setWriteOffAmt(Env.ZERO);
+				setDiscountAmt(Env.ZERO);
+				setIsOverUnderPayment(false);
+				setOverUnderAmt(Env.ZERO);
+				setIsPrepayment(false);
+			}
+		}		
+		else if (getC_BPartner_ID() == 0 && !isCashTrx())
+		{
+			if (getC_Invoice_ID() != 0)
+				;
+			else if (getC_Order_ID() != 0)
+				;
+			else
+			{
+				log.saveError("Error", Msg.parseTranslation(getCtx(), "@NotFound@: @C_BPartner_ID@"));
+				return false;
+			}
+		}
+		// Update IsPrepayment flag
+		if (newRecord 
+			|| is_ValueChanged("C_Charge_ID") || is_ValueChanged("C_Invoice_ID")
+			|| is_ValueChanged("C_Order_ID") || is_ValueChanged("C_Project_ID"))
+		{
+			if (getReversal_ID() > 0)
+			{
+				setIsPrepayment(getReversal().isPrepayment());
+			}
+			else
+			{
+				setIsPrepayment (getC_Charge_ID() == 0 
+					&& getC_BPartner_ID() != 0
+					&& (getC_Order_ID() != 0 
+						|| (getC_Project_ID() != 0 && getC_Invoice_ID() == 0)));
+			}
+		}
+		// Prepayment: reset write off, discount,IsOverUnderPayment and OverUnderAmt for new record or after change of order/project.
+		if (isPrepayment())
+		{
+			if (newRecord 
+				|| is_ValueChanged("C_Order_ID") || is_ValueChanged("C_Project_ID"))
+			{
+				setWriteOffAmt(Env.ZERO);
+				setDiscountAmt(Env.ZERO);
+				setIsOverUnderPayment(false);
+				setOverUnderAmt(Env.ZERO);
+			}
+		}
+		
+		//	Document Type/Receipt
+		if (getC_DocType_ID() == 0)
+			setC_DocType_ID();
+		else
+		{
+			MDocType dt = MDocType.get(getCtx(), getC_DocType_ID());
+			setIsReceipt(dt.isSOTrx());
+		}
+		setDocumentNo();
+		//
+		if (getDateAcct() == null)
+			setDateAcct(getDateTrx());
+		//
+		if (!isOverUnderPayment())
+			setOverUnderAmt(Env.ZERO);
+		
+		//	Organization
+		if ((newRecord || is_ValueChanged("C_BankAccount_ID"))
+			&& getC_Charge_ID() == 0)	//	allow different org for charge
+		{
+			MBankAccount ba = MBankAccount.get(getCtx(), getC_BankAccount_ID());
+			if (ba.getAD_Org_ID() != 0)
+				setAD_Org_ID(ba.getAD_Org_ID());
+		}
+		
+		// Encrypt credit card number and cvv
+		if (isProcessed())
+		{
+			if (getCreditCardNumber() != null)
+			{
+				String encrpytedCCNo = PaymentUtil.encrpytCreditCard(getCreditCardNumber());
+				if (!encrpytedCCNo.equals(getCreditCardNumber()))
+					setCreditCardNumber(encrpytedCCNo);
+			}
+			
+			if (getCreditCardVV() != null)
+			{
+				String encrpytedCvv = PaymentUtil.encrpytCvv(getCreditCardVV());
+				if (!encrpytedCvv.equals(getCreditCardVV()))
+					setCreditCardVV(encrpytedCvv);
+			}
+		}
+		// Validate IBAN
+		if (MSysConfig.getBooleanValue(MSysConfig.IBAN_VALIDATION, true, Env.getAD_Client_ID(Env.getCtx()))) {
+			if (!Util.isEmpty(getIBAN())) {
+				setIBAN(IBAN.normalizeIBAN(getIBAN()));
+				if (!IBAN.isValid(getIBAN())) {
+					log.saveError("Error", Msg.getMsg(getCtx(), "InvalidIBAN"));
+					return false;
+				}
+			}
+		}
+		// Validate IsOverrideCurrencyRate and Currency Rate
+		if (!isProcessed())
+		{
+			MClientInfo info = MClientInfo.get(getCtx(), getAD_Client_ID(), get_TrxName()); 
+			MAcctSchema as = MAcctSchema.get (getCtx(), info.getC_AcctSchema1_ID(), get_TrxName());
+			if (as.getC_Currency_ID() != getC_Currency_ID())
+			{
+				if (isOverrideCurrencyRate())
+				{
+					if(getCurrencyRate() == null || getCurrencyRate().signum() == 0)
+					{
+						log.saveError("FillMandatory", Msg.getElement(getCtx(), COLUMNNAME_CurrencyRate));
+						return false;
+					}
+					if (getConvertedAmt() == null || getConvertedAmt().signum() == 0)
+					{
+						log.saveError("FillMandatory", Msg.getElement(getCtx(), COLUMNNAME_ConvertedAmt));
+						return false;
+					}
+					BigDecimal converted = getPayAmt().multiply(getCurrencyRate());
+					int stdPrecision = MCurrency.getStdPrecision(getCtx(), as.getC_Currency_ID());
+					if (converted.scale() > stdPrecision)
+						converted = converted.setScale(stdPrecision, RoundingMode.HALF_UP);
+					setConvertedAmt(converted);
+				}
+				else
+				{
+					setCurrencyRate(null);
+					setConvertedAmt(null);
+				}
+			}
+			else
+			{
+				setCurrencyRate(null);
+				setConvertedAmt(null);
+			}
+		}
+
+		// Clear credit card fields if tender type is not credit card
+		if (!isProcessed())
+		{
+			if (!TENDERTYPE_CreditCard.equals(getTenderType()))
+			{
+				if (!Util.isEmpty(getCreditCardType(), true))
+				{
+					setCreditCardType(null);					
+				}
+				
+				if (!Util.isEmpty(getCreditCardNumber(), true))
+				{
+					setCreditCardNumber(null);
+				}
+				
+				if (!Util.isEmpty(getCreditCardVV(), true))
+				{
+					setCreditCardVV(null);
+				}
+				
+				if (getCreditCardExpMM() > 0)
+				{
+					set_Value(COLUMNNAME_CreditCardExpMM, null);
+				}
+				
+				if (getCreditCardExpYY() > 0)
+				{
+					set_Value(COLUMNNAME_CreditCardExpYY, null);
+				}
+			}
+		}
+		
+		return true;
+	}	//	beforeSave
 
 }

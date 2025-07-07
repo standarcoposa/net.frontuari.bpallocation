@@ -54,7 +54,6 @@ import org.adempiere.webui.panel.ADForm;
 import org.adempiere.webui.panel.CustomForm;
 import org.adempiere.webui.util.ZKUpdateUtil;
 import org.adempiere.webui.window.FDialog;
-import org.compiere.model.MAllocationHdr;
 import org.compiere.model.MLookup;
 import org.compiere.model.MLookupFactory;
 import org.compiere.model.MSysConfig;
@@ -74,6 +73,8 @@ import org.zkoss.zul.North;
 import org.zkoss.zul.Separator;
 import org.zkoss.zul.South;
 import org.zkoss.zul.Space;
+
+import net.frontuari.bpallocation.model.MFTUAllocationHeader;
 
 /**
  * Allocation Form
@@ -526,7 +527,7 @@ public class WFTUBPAllocation extends FTUBPAllocation implements ValueChangeList
 		else if (e.getTarget().equals(allocateButton))
 		{
 			allocateButton.setEnabled(false);
-			MAllocationHdr allocation = saveData();
+			MFTUAllocationHeader allocation = saveData();
 			loadBPartner();
 			loadBPartner2();
 			allocateButton.setEnabled(true);
@@ -851,7 +852,7 @@ public class WFTUBPAllocation extends FTUBPAllocation implements ValueChangeList
 	/**************************************************************************
 	 *  Save Data
 	 */
-	private MAllocationHdr saveData()
+	private MFTUAllocationHeader saveData()
 	{
 		if (m_AD_Org_ID > 0)
 			Env.setContext(Env.getCtx(), form.getWindowNo(), "AD_Org_ID", m_AD_Org_ID);
@@ -859,7 +860,7 @@ public class WFTUBPAllocation extends FTUBPAllocation implements ValueChangeList
 			Env.setContext(Env.getCtx(), form.getWindowNo(), "AD_Org_ID", "");
 		try
 		{
-			final MAllocationHdr[] allocation = new MAllocationHdr[1];
+			final MFTUAllocationHeader[] allocation = new MFTUAllocationHeader[1];
 			Trx.run(new TrxRunnable() 
 			{
 				public void run(String trxName)

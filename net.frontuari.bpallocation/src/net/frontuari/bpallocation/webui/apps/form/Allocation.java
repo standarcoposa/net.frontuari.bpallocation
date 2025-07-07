@@ -28,7 +28,6 @@ import java.util.logging.Level;
 
 import org.adempiere.exceptions.AdempiereException;
 import org.compiere.minigrid.IMiniTable;
-import org.compiere.model.MAllocationHdr;
 import org.compiere.model.MAllocationLine;
 import org.compiere.model.MBPartner;
 import org.compiere.model.MDocType;
@@ -48,6 +47,7 @@ import org.compiere.util.Util;
 
 import net.frontuari.bpallocation.base.CustomForm;
 import net.frontuari.bpallocation.model.MFTUPayment;
+import net.frontuari.bpallocation.model.MFTUAllocationHeader;
 
 
 public class Allocation extends CustomForm
@@ -1103,7 +1103,7 @@ public class Allocation extends CustomForm
 	/**************************************************************************
 	 *  Save Data
 	 */
-	public MAllocationHdr saveData(int m_WindowNo, Object date, Object dateAcct, IMiniTable payment, IMiniTable invoice, String trxName)
+	public MFTUAllocationHeader saveData(int m_WindowNo, Object date, Object dateAcct, IMiniTable payment, IMiniTable invoice, String trxName)
 	{
 		if (m_noInvoices + m_noPayments == 0)
 			return null;
@@ -1157,7 +1157,7 @@ public class Allocation extends CustomForm
 		int iRows = invoice.getRowCount();
 		
 		//	Create Allocation
-		MAllocationHdr alloc = new MAllocationHdr (Env.getCtx(), true,	//	manual
+		MFTUAllocationHeader alloc = new MFTUAllocationHeader (Env.getCtx(), true,	//	manual
 			DateTrx, C_Currency_ID, Env.getContext(Env.getCtx(), "#AD_User_Name"), trxName);
 		alloc.setAD_Org_ID(AD_Org_ID);
 		alloc.setC_DocType_ID(m_C_DocType_ID);
