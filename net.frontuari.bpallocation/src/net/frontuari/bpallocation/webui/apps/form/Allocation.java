@@ -174,7 +174,7 @@ public class Allocation extends CustomForm
 			+ ",p.Description "
 			+ "FROM C_Payment_v p"		//	Corrected for AP/AR
 			+ " INNER JOIN C_Currency c ON (p.C_Currency_ID=c.C_Currency_ID) "
-			+ "WHERE p.IsAllocated='N' AND p.Processed='Y'"
+			+ "WHERE p.IsAllocated='N' AND p.Processed='Y' AND p.DocStatus IN ('CO','CL') "
 			+ " AND p.C_Charge_ID IS NULL"		//	Prepayments OK
 			+ " AND p.C_BPartner_ID=?");                   		//      #5
 		if (!isMultiCurrency)
@@ -337,7 +337,7 @@ public class Allocation extends CustomForm
 			+ ",i.Description " //11 Description
 			+ "FROM C_Invoice_v i"		//  corrected for CM/Split
 			+ " INNER JOIN C_Currency c ON (i.C_Currency_ID=c.C_Currency_ID) "
-			+ "WHERE i.IsPaid='N' AND i.Processed='Y'"
+			+ "WHERE i.IsPaid='N' AND i.Processed='Y' AND i.DocStatus IN ('CO','CL') "
 			+ " AND i.C_BPartner_ID=?");                                            //  #7
 		if (!isMultiCurrency)
 			sql.append(" AND i.C_Currency_ID=?");                                   //  #8
