@@ -1327,7 +1327,7 @@ public class Allocation extends CustomForm
 		for (int i = 0; i < paymentList.size(); i++)
 		{
 			int C_Payment_ID = ((Integer)paymentList.get(i)).intValue();
-			MPayment pay = new MPayment (Env.getCtx(), C_Payment_ID, trxName);
+			MFTUPayment pay = new MFTUPayment (Env.getCtx(), C_Payment_ID, trxName);
 			if (pay.testAllocation())
 				pay.saveEx();
 			if (log.isLoggable(Level.CONFIG)) log.config("Payment #" + i + (pay.isAllocated() ? " not" : " is") 

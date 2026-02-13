@@ -376,32 +376,27 @@ public class MFTUPayment extends MPayment{
 	public boolean testAllocation()
 	{
 		//
-		BigDecimal alloc = getAllocatedAmt();
-		if (alloc == null)
-			alloc = Env.ZERO;
-		BigDecimal total = getPayAmt();
-		if (!isReceipt())
-			total = total.negate();
+		BigDecimal available = DB.getSQLValueBD(get_TrxName(), "SELECT PaymentAvailableConverted(?, ?)", 
+				getC_Payment_ID(), getC_Currency_ID());
+		if (available == null)
+			available = Env.ZERO;
+
 		//Added by David Castillo 02/02/2024 Tolerance to set Allocated check due to conversion differences
 		BigDecimal tolerance = MSysConfig.getBigDecimalValue("AllocationTolerance", new BigDecimal("0.1"), getAD_Client_ID(), getAD_Org_ID());
-		BigDecimal difference = total.abs().subtract(alloc.abs());
-		if (difference.compareTo(tolerance)==1 || difference.compareTo(tolerance.negate())==-1) {
+		
+		//log.warning("MFTUPayment.testAllocation: Payment=" + getDocumentNo() + " Available=" + available + " Tolerance=" + tolerance);
+		
+		if (available.compareTo(tolerance) > 0) {
 			if (log.isLoggable(Level.FINE)) log.fine("Allocated=" + false 
-					+ " (" + alloc + "=" + total + ")");
+					+ " (Available=" + available + ")");
+			setIsAllocated(false);
 			return false;
 		}else {
 			if (log.isLoggable(Level.FINE)) log.fine("Allocated=" + true 
-					+ " (" + alloc + "=" + total + ")");
+					+ " (Available=" + available + ")");
 			setIsAllocated(true);
 			return true;
 		}
-		/*boolean test = total.compareTo(alloc) == 0;
-		boolean change = test != isAllocated();
-		if (change)
-			setIsAllocated(test);
-		if (log.isLoggable(Level.FINE)) log.fine("Allocated=" + test 
-			+ " (" + alloc + "=" + total + ")");
-		return change;*/
 	}	//	testAllocation
 	
 	/**
