@@ -370,38 +370,39 @@ public class MFTUPayment extends MPayment{
 	
 
 	/**
-	 * 	Test Allocation (and set allocated flag)
-	 *	@return true if updated
+	 * Test Allocation (and set allocated flag)
+	 * 
+	 * @return true if updated
 	 */
-	public boolean testAllocation()
-	{
+	public boolean testAllocation() {
 		//
-		BigDecimal available = DB.getSQLValueBD(get_TrxName(), "SELECT PaymentAvailableConverted(?, ?)", 
-				getC_Payment_ID(), getC_Currency_ID());
-		if (available == null)
-			available = Env.ZERO;
-
-		//Added by David Castillo 02/02/2024 Tolerance to set Allocated check due to conversion differences
-		BigDecimal tolerance = MSysConfig.getBigDecimalValue("AllocationTolerance", new BigDecimal("0.1"), getAD_Client_ID(), getAD_Org_ID());
-		
-		//log.warning("MFTUPayment.testAllocation: Payment=" + getDocumentNo() + " Available=" + available + " Tolerance=" + tolerance);
-		
-		if (available.compareTo(tolerance) > 0) {
-			if (log.isLoggable(Level.FINE)) log.fine("Allocated=" + false 
-					+ " (Available=" + available + ")");
-			setIsAllocated(false);
+		BigDecimal alloc = getAllocatedAmt();
+		if (alloc == null)
+			alloc = Env.ZERO;
+		BigDecimal total = getPayAmt();
+		if (!isReceipt())
+			total = total.negate();
+		// Added by David Castillo 02/02/2024 Tolerance to set Allocated check due to
+		// conversion differences
+		BigDecimal tolerance = MSysConfig.getBigDecimalValue("AllocationTolerance", new BigDecimal("0.1"),
+				getAD_Client_ID(), getAD_Org_ID());
+		BigDecimal difference = total.abs().subtract(alloc.abs());
+		if (difference.compareTo(tolerance) == 1 || difference.compareTo(tolerance.negate()) == -1) {
+			if (log.isLoggable(Level.FINE))
+				log.fine("Allocated=" + false + " (" + alloc + "=" + total + ")");
 			return false;
-		}else {
-			if (log.isLoggable(Level.FINE)) log.fine("Allocated=" + true 
-					+ " (Available=" + available + ")");
+		} else {
+			if (log.isLoggable(Level.FINE))
+				log.fine("Allocated=" + true + " (" + alloc + "=" + total + ")");
 			setIsAllocated(true);
 			return true;
 		}
-	}	//	testAllocation
-	
+	}
+
 	/**
-	 * 	Get Allocated Amt in Payment Currency
-	 *	@return amount or null
+	 * Get Allocated Amt in Payment Currency
+	 * 
+	 * @return amount or null
 	 */
 	public BigDecimal getAllocatedAmt ()
 	{

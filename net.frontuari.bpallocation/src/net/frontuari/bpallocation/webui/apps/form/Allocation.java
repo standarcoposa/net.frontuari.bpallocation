@@ -30,6 +30,7 @@ import org.adempiere.exceptions.AdempiereException;
 import org.compiere.minigrid.IMiniTable;
 import org.compiere.model.MAllocationLine;
 import org.compiere.model.MBPartner;
+import org.compiere.model.MConversionRate;
 import org.compiere.model.MDocType;
 import org.compiere.model.MInvoice;
 import org.compiere.model.MPayment;
@@ -1323,15 +1324,26 @@ public class Allocation extends CustomForm
 				}
 			}
 		}
-		//  Test/Set Payment is fully allocated
+		// Test/Set Payment is fully allocated
 		for (int i = 0; i < paymentList.size(); i++)
 		{
-			int C_Payment_ID = ((Integer)paymentList.get(i)).intValue();
-			MFTUPayment pay = new MFTUPayment (Env.getCtx(), C_Payment_ID, trxName);
-			if (pay.testAllocation())
-				pay.saveEx();
-			if (log.isLoggable(Level.CONFIG)) log.config("Payment #" + i + (pay.isAllocated() ? " not" : " is") 
-					+ " fully allocated");
+		    int C_Payment_ID = ((Integer)paymentList.get(i)).intValue();
+		    MPayment pay = new MPayment (Env.getCtx(), C_Payment_ID, trxName);
+		    
+		    // CAMBIO AQUI: Agregamos 'trxName' al final de los parámetros
+		    if (paymentAvailableConvert(C_Payment_ID, C_Currency_ID, (Timestamp)dateAcct, pay.getAD_Client_ID(), pay.getAD_Org_ID(), trxName))
+		    {
+		        pay.setIsAllocated(true);
+		        pay.saveEx(); 
+		    }
+		    else 
+		    {
+		        pay.setIsAllocated(false);
+		        pay.saveEx();
+		    }
+		    
+		    if (log.isLoggable(Level.CONFIG)) 
+		        log.config("Payment #" + i + (pay.isAllocated() ? " is" : " not") + " fully allocated");
 		}
 		MBPartner bpartner = new MBPartner(Env.getCtx(), m_C_BPartner_ID, trxName);
 		bpartner.setTotalOpenBalance();
@@ -1433,4 +1445,50 @@ public class Allocation extends CustomForm
 		
 		return data;
 	}
+	// CAMBIO AQUI: Agregamos 'String trxName' a la firma del método
+	public boolean paymentAvailableConvert(int C_Payment_ID, int C_Currency_ID, Timestamp dateAcct, int AD_Client_ID, int AD_Org_ID, String trxName) 
+	{
+	    // 1. Obtener configuraciones
+	    int toleranceCurrencyID = MSysConfig.getIntValue("AllocationCurrency", 100, AD_Client_ID, AD_Org_ID);
+	    BigDecimal toleranceAmtBase = MSysConfig.getBigDecimalValue("AllocationTolerance", new BigDecimal("0.01"), AD_Client_ID, AD_Org_ID);
+	    
+	    if (dateAcct == null)
+	        dateAcct = new Timestamp(System.currentTimeMillis());
+
+	    // 2. Conversión de Tolerancia
+	    BigDecimal toleranceConverted = MConversionRate.convert(Env.getCtx(), 
+	            toleranceAmtBase, toleranceCurrencyID, C_Currency_ID, 
+	            dateAcct, 0, AD_Client_ID, AD_Org_ID);
+
+	    if (toleranceConverted == null) {
+	        log.warning("AUDITORIA_ERROR: Sin tasa de cambio. Usando base.");
+	        toleranceConverted = toleranceAmtBase; 
+	    }
+
+	    // 3. Obtener saldo disponible REAL (USANDO trxName)
+	    // ALERTA: Aquí es donde se "resta" lo asignado. 
+	    // Al pasar 'trxName', el SQL ve las líneas nuevas y devuelve el saldo remanente real.
+	    BigDecimal availableInAllocCurrency = DB.getSQLValueBD(trxName, 
+	            "SELECT PaymentAvailableConverted(?, ?)", 
+	            C_Payment_ID, C_Currency_ID);
+	    
+	    if (availableInAllocCurrency == null)
+	        availableInAllocCurrency = Env.ZERO;
+
+	    // 4. Lógica de comparación (Saldo Remanente vs Tolerancia)
+	    boolean isAllocated = availableInAllocCurrency.abs().compareTo(toleranceConverted) < 0;
+
+	    // Log Warning
+	    StringBuilder logMsg = new StringBuilder();
+	    logMsg.append(" [AUDITORIA ASIGNACION] ")
+	          .append(" | ID Pago: ").append(C_Payment_ID)
+	          .append(" | Saldo Restante: ").append(availableInAllocCurrency) // Este valor ya tiene restada la asignación
+	          .append(" | Tolerancia Conv: ").append(toleranceConverted)
+	          .append(" | Resultado: ").append(isAllocated ? "CERRADO" : "ABIERTO");
+
+	    log.log(Level.WARNING, logMsg.toString());
+
+	    return isAllocated;
+	}
+	
 }
