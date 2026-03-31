@@ -84,6 +84,9 @@ public class Allocation extends CustomForm
 	private int         i_writeOff = 8; 
 	private int         i_applied = 9;
 	private int 		i_overUnder = 10;
+	// Added by Marcos Reyes 2026-03-30 13:59
+	// Set the invoice description position
+	private int 		i_description = 12;
 //	private int			i_multiplier = 10;
 	
 	public int         	m_AD_Org_ID = 0;
@@ -335,7 +338,9 @@ public class Allocation extends CustomForm
 			+ "i.MultiplierAP "	//	9
 			//	Added by Jorge Colmenarez, 2022-01-05 16:46 RQ #0000225
 			+ ",i.DateAcct "	//	10
-			+ ",i.Description " //11 Description
+			// Updated by Marcos Reyes 2026-03-30 13:59
+			// We get the allocation description. If empty, get the invoice description
+			+ ",coalesce(ftu_getlatestinvoiceallocationdescription(i.C_Invoice_ID),i.Description,'') " //11 Description
 			+ "FROM C_Invoice_v i"		//  corrected for CM/Split
 			+ " INNER JOIN C_Currency c ON (i.C_Currency_ID=c.C_Currency_ID) "
 			+ "WHERE i.IsPaid='N' AND i.Processed='Y' AND i.DocStatus IN ('CO','CL') "
@@ -589,7 +594,9 @@ public class Allocation extends CustomForm
 //		invoiceTable.setColumnClass(i++, BigDecimal.class, true);      	//  10-Multiplier
 		//	Added by Jorge Colmenarez, 2022-01-05 16:47 RQ #0000225
 		invoiceTable.setColumnClass(i++, Timestamp.class, true);        //  11-DateAcct
-		invoiceTable.setColumnClass(i++, String.class, true);
+		// Updated by Marcos Reyes 2026-03-30 13:59
+		// Make the invoice description updateable
+		invoiceTable.setColumnClass(i++, String.class, false);			//  12-Description
 		//  Table UI
 		invoiceTable.autoSize();
 	}
@@ -601,6 +608,9 @@ public class Allocation extends CustomForm
 		i_writeOff = isMultiCurrency ? 8 : 6;
 		i_applied = isMultiCurrency ? 9 : 7;
 		i_overUnder = isMultiCurrency ? 10 : 8;
+		// Added by Marcos Reyes 2026-03-30 13:59
+		// Change invoice description position if isMultiCurrency is true
+		i_description = isMultiCurrency ? 12 : 10;
 //		i_multiplier = isMultiCurrency ? 10 : 8;
 	}   //  loadBPartner
 	
@@ -1190,6 +1200,9 @@ public class Allocation extends CustomForm
 				//	OverUnderAmt needs to be in Allocation Currency
 				BigDecimal OverUnderAmt = ((BigDecimal)invoice.getValueAt(i, i_open))
 					.subtract(AppliedAmt).subtract(DiscountAmt).subtract(WriteOffAmt);
+				// Updated by Marcos Reyes 2026-03-30 13:59
+				// Get the invoice description
+				String Description = (String) invoice.getValueAt(i,i_description);
 				
 				if (log.isLoggable(Level.CONFIG)) log.config("Invoice #" + i + " - AppliedAmt=" + AppliedAmt);// + " -> " + AppliedAbs);
 				//  loop through all payments until invoice applied
@@ -1211,6 +1224,9 @@ public class Allocation extends CustomForm
 							DiscountAmt, WriteOffAmt, OverUnderAmt);
 						aLine.setDocInfo(C_BPartner_ID, C_Order_ID, C_Invoice_ID);
 						aLine.setPaymentInfo(C_Payment_ID, C_CashLine_ID);
+						// Updated by Marcos Reyes 2026-03-30 13:59
+						// Set the invoice description
+						aLine.set_ValueOfColumn("Description", Description);
 						aLine.saveEx();
 
 						//  Apply Discounts and WriteOff only first time
